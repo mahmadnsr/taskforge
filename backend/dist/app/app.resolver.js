@@ -7,7 +7,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-import { Query, Resolver, Int } from '@nestjs/graphql';
+import { Query, Resolver } from '@nestjs/graphql';
 import { PrismaService } from '../prisma/prisma.service.js';
 let AppResolver = class AppResolver {
     prisma;
@@ -17,9 +17,6 @@ let AppResolver = class AppResolver {
     hello() {
         return 'Hello World';
     }
-    async testCount() {
-        return this.prisma.test.count();
-    }
 };
 __decorate([
     Query(() => String),
@@ -27,12 +24,6 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", String)
 ], AppResolver.prototype, "hello", null);
-__decorate([
-    Query(() => Int),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", Promise)
-], AppResolver.prototype, "testCount", null);
 AppResolver = __decorate([
     Resolver(),
     __metadata("design:paramtypes", [PrismaService])

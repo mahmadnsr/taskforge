@@ -1,4 +1,4 @@
-import { Query, Resolver, Int } from '@nestjs/graphql';
+import { Query, Resolver} from '@nestjs/graphql';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Resolver()
@@ -8,10 +8,5 @@ export class AppResolver {
   @Query(() => String)
   hello(): string {
     return 'Hello World';
-  }
-
-  @Query(() => Int)
-  async testCount() {
-    return this.prisma.test.count();
   }
 }

@@ -3,5 +3,4 @@ export declare class AppResolver {
     private prisma;
     constructor(prisma: PrismaService);
     hello(): string;
-    testCount(): Promise<any>;
 }
