@@ -63,7 +63,7 @@ model OrganizationMember {
 model RefreshToken {
   id        String   @id @default(uuid())
   userId    String
-  tokenHash String
+  tokenHash String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
 

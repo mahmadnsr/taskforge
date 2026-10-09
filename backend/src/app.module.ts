@@ -7,6 +7,9 @@ import {ApolloDriver, ApolloDriverConfig} from '@nestjs/apollo';
 import { AppResolver } from './app/app.resolver.js';
 import { ConfigModule } from '@nestjs/config'; 
 import { PrismaModule } from './prisma/prisma.module.js';
+import { UsersModule } from './users/users.module.js';
+import { OrganizationsModule } from './organizations/organizations.module.js';
+import { AuthModule } from './auth/auth.module.js';
 
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
@@ -31,7 +34,10 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
         playground: true
       }
     ),
-    PrismaModule
+    PrismaModule,
+    UsersModule,
+    OrganizationsModule,
+    AuthModule
   ],
   controllers: [AppController],
   providers: [AppService, AppResolver],
