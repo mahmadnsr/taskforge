@@ -38,4 +38,15 @@ export declare class AuthResolver {
         };
     }>;
     logout(input: RefreshTokenInput): Promise<boolean>;
+    me(user: {
+        id: string;
+    }): Promise<{
+        id: string;
+        name: string;
+        email: string;
+        passwordHash: string;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    adminOnly(): string;
 }

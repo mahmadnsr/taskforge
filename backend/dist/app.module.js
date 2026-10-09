@@ -28,7 +28,8 @@ AppModule = __decorate([
             GraphQLModule.forRoot({
                 driver: ApolloDriver,
                 autoSchemaFile: true,
-                playground: true
+                playground: true,
+                context: ({ req }) => ({ req }),
             }),
             PrismaModule,
             UsersModule,

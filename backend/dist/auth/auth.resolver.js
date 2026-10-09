@@ -10,13 +10,19 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { Args, Mutation, Resolver } from '@nestjs/graphql';
+import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { AuthService } from './auth.service.js';
 import { RegisterInput } from './dto/register.input.js';
 import { LoginInput } from './dto/login.input.js';
 import { User } from '../users/entities/user.entity.js';
 import { AuthPayload } from './entities/auth-payload.entity.js';
 import { RefreshTokenInput } from './dto/refresh-token.input.js';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
+import { CurrentUser } from './decorators/current-user.decorator.js';
+import { Role } from '@prisma/client';
+import { Roles } from './decorators/roles.decorator.js';
+import { RolesGuard } from './guards/roles.guard.js';
 let AuthResolver = class AuthResolver {
     authService;
     constructor(authService) {
@@ -33,6 +39,12 @@ let AuthResolver = class AuthResolver {
     }
     logout(input) {
         return this.authService.logout(input.refreshToken);
+    }
+    me(user) {
+        return this.authService.me(user.id);
+    }
+    adminOnly() {
+        return 'You are an ADMIN of this organization';
     }
 };
 __decorate([
@@ -63,6 +75,22 @@ __decorate([
     __metadata("design:paramtypes", [RefreshTokenInput]),
     __metadata("design:returntype", void 0)
 ], AuthResolver.prototype, "logout", null);
+__decorate([
+    Query(() => User),
+    UseGuards(JwtAuthGuard),
+    __param(0, CurrentUser()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AuthResolver.prototype, "me", null);
+__decorate([
+    Query(() => String),
+    Roles(Role.ADMIN),
+    UseGuards(JwtAuthGuard, RolesGuard),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], AuthResolver.prototype, "adminOnly", null);
 AuthResolver = __decorate([
     Resolver(),
     __metadata("design:paramtypes", [AuthService])

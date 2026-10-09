@@ -12,8 +12,8 @@ export declare class AuthService {
     constructor(prisma: PrismaService, usersService: UsersService, organizationsService: OrganizationsService, tokenService: TokenService);
     register(input: RegisterInput): Promise<{
         id: string;
-        name: string;
         email: string;
+        name: string;
         passwordHash: string;
         createdAt: Date;
         updatedAt: Date;
@@ -23,8 +23,8 @@ export declare class AuthService {
         refreshToken: string;
         user: {
             id: string;
-            name: string;
             email: string;
+            name: string;
             passwordHash: string;
             createdAt: Date;
             updatedAt: Date;
@@ -35,12 +35,20 @@ export declare class AuthService {
         refreshToken: string;
         user: {
             id: string;
-            name: string;
             email: string;
+            name: string;
             passwordHash: string;
             createdAt: Date;
             updatedAt: Date;
         };
     }>;
     logout(refreshToken: string): Promise<boolean>;
+    me(userId: string): Promise<{
+        id: string;
+        email: string;
+        name: string;
+        passwordHash: string;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
 }

@@ -95,4 +95,12 @@ export class AuthService {
     await this.tokenService.revokeRefreshToken(refreshToken);
     return true;
   }
+
+  async me(userId: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+    return user;
+  }
 }
