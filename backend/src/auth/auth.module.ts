@@ -14,6 +14,7 @@ import { TokenService } from './token.service.js';
     UsersModule,
     OrganizationsModule,
     JwtModule.registerAsync({
+      global: true,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         secret: config.getOrThrow<string>('JWT_ACCESS_SECRET'),
