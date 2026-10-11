@@ -1,15 +1,17 @@
 import { createHash, randomBytes } from 'node:crypto';
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { InviteMemberInput } from './dto/invite-member.input.js';
 
 const NOT_A_MEMBER = 'You are not a member of this organization';
+const INVALID_INVITE = 'Invalid or expired invitation';
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 din
 
 // Token high-entropy random hai, isliye fast SHA-256 kaafi hai (bcrypt nahi chahiye)
@@ -85,5 +87,79 @@ export class InvitationsService {
 
     const isProduction = this.config.get<string>('NODE_ENV') === 'production';
     return { ...invitation, inviteToken: isProduction ? null : token };
+  }
+
+  async acceptInvitation(userId: string, token: string) {
+    // Email hamesha DB se (token/input se nahi)
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    if (!user) {
+      throw new BadRequestException(INVALID_INVITE);
+    }
+
+    const invitation = await this.prisma.organizationInvitation.findUnique({
+      where: { tokenHash: hashToken(token) },
+      select: {
+        id: true,
+        organizationId: true,
+        email: true,
+        role: true,
+        expiresAt: true,
+        acceptedAt: true,
+      },
+    });
+
+    const now = new Date();
+
+    // Sab failure cases ka same error: leak nahi
+    if (
+      !invitation ||
+      invitation.acceptedAt ||
+      invitation.expiresAt <= now ||
+      invitation.email !== user.email.trim().toLowerCase()
+    ) {
+      throw new BadRequestException(INVALID_INVITE);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // Atomic claim: do parallel requests me sirf ek ka count 1 hoga
+      const claimed = await tx.organizationInvitation.updateMany({
+        where: {
+          id: invitation.id,
+          acceptedAt: null,
+          expiresAt: { gt: now },
+        },
+        data: { acceptedAt: now },
+      });
+      if (claimed.count === 0) {
+        throw new BadRequestException(INVALID_INVITE);
+      }
+
+      try {
+        await tx.organizationMember.create({
+          data: {
+            userId,
+            organizationId: invitation.organizationId,
+            role: invitation.role,
+          },
+        });
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === 'P2002'
+        ) {
+          throw new ConflictException(
+            'You are already a member of this organization',
+          );
+        }
+        throw e;
+      }
+
+      return tx.organization.findUniqueOrThrow({
+        where: { id: invitation.organizationId },
+      });
+    });
   }
 }
