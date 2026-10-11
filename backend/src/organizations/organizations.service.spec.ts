@@ -21,7 +21,10 @@ describe('OrganizationsService', () => {
   const orgB = { id: 'o2', name: 'Org B', slug: 'org-b' };
 
   it('returns only organizations the user belongs to', async () => {
-    findMany.mockResolvedValue([{ organization: orgA }, { organization: orgB }]);
+    findMany.mockResolvedValue([
+      { organization: orgA },
+      { organization: orgB },
+    ]);
 
     const result = await service.findAllForUser('u1');
 
@@ -60,7 +63,9 @@ describe('OrganizationsService', () => {
 
     expect(findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId_organizationId: { userId: 'u1', organizationId: 'o1' } },
+        where: {
+          userId_organizationId: { userId: 'u1', organizationId: 'o1' },
+        },
       }),
     );
   });

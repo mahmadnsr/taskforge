@@ -20,12 +20,22 @@ describe('OrganizationsService: members', () => {
   const member1 = {
     id: 'm1',
     role: 'ADMIN',
-    user: { id: 'u1', name: 'One', email: 'one@test.com', createdAt: new Date() },
+    user: {
+      id: 'u1',
+      name: 'One',
+      email: 'one@test.com',
+      createdAt: new Date(),
+    },
   };
   const member2 = {
     id: 'm2',
     role: 'EMPLOYEE',
-    user: { id: 'u2', name: 'Two', email: 'two@test.com', createdAt: new Date() },
+    user: {
+      id: 'u2',
+      name: 'Two',
+      email: 'two@test.com',
+      createdAt: new Date(),
+    },
   };
 
   it('returns the member list for a member of the organization', async () => {
@@ -57,7 +67,9 @@ describe('OrganizationsService: members', () => {
       ForbiddenException,
     );
     expect(findUnique).toHaveBeenCalledWith({
-      where: { userId_organizationId: { userId: 'u1', organizationId: 'org-B' } },
+      where: {
+        userId_organizationId: { userId: 'u1', organizationId: 'org-B' },
+      },
     });
   });
 
@@ -89,7 +101,9 @@ describe('OrganizationsService: members', () => {
     expect(result).toEqual(member2);
     expect(findUnique).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        where: { userId_organizationId: { userId: 'u2', organizationId: 'org-1' } },
+        where: {
+          userId_organizationId: { userId: 'u2', organizationId: 'org-1' },
+        },
       }),
     );
   });
@@ -107,8 +121,8 @@ describe('OrganizationsService: members', () => {
       .mockResolvedValueOnce({ role: 'ADMIN' }) // caller ok
       .mockResolvedValueOnce(null); // target nahi mila
 
-    await expect(service.getMember('u1', 'org-1', 'ghost')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.getMember('u1', 'org-1', 'ghost'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
