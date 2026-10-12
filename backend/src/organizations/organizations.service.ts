@@ -10,7 +10,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 const NOT_A_MEMBER = 'You are not a member of this organization';
 
 // Sirf wahi fields jo client ko dikhane hain. passwordHash kabhi select nahi hota.
-const MEMBER_SELECT = {
+export const MEMBER_SELECT = {
   id: true,
   role: true,
   user: {

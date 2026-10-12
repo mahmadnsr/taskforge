@@ -46,7 +46,11 @@ describe('InvitationsService.acceptInvitation', () => {
     inviteFindUnique.mockResolvedValue(validInvite());
     updateMany.mockResolvedValue({ count: 1 });
     memberCreate.mockResolvedValue({ id: 'm1' });
-    orgFindUniqueOrThrow.mockResolvedValue({ id: 'o1', name: 'Org', slug: 'org' });
+    orgFindUniqueOrThrow.mockResolvedValue({
+      id: 'o1',
+      name: 'Org',
+      slug: 'org',
+    });
     transaction.mockImplementation((cb: (t: typeof tx) => unknown) => cb(tx));
     service = new InvitationsService(prisma, config);
   });
@@ -86,7 +90,10 @@ describe('InvitationsService.acceptInvitation', () => {
   });
 
   it('rejects an already accepted invitation (no reuse)', async () => {
-    inviteFindUnique.mockResolvedValue({ ...validInvite(), acceptedAt: new Date() });
+    inviteFindUnique.mockResolvedValue({
+      ...validInvite(),
+      acceptedAt: new Date(),
+    });
     await expect(service.acceptInvitation('u9', 't')).rejects.toBeInstanceOf(
       BadRequestException,
     );

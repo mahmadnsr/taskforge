@@ -4,6 +4,8 @@ import { OrganizationsResolver } from './organizations.resolver.js';
 import { OrganizationMembersResolver } from './organization-members.resolver.js';
 import { InvitationsService } from './invitations.service.js';
 import { InvitationsResolver } from './invitations.resolver.js';
+import { MemberManagementService } from './member-management.service.js';
+import { MemberManagementResolver } from './member-management.resolver.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 
 @Module({
@@ -14,6 +16,8 @@ import { PrismaModule } from '../prisma/prisma.module.js';
     OrganizationMembersResolver,
     InvitationsService,
     InvitationsResolver,
+    MemberManagementService,
+    MemberManagementResolver,
   ],
   exports: [OrganizationsService],
 })
