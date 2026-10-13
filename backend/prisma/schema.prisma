@@ -33,6 +33,7 @@ model User {
   memberships  OrganizationMember[]
   refreshTokens RefreshToken[]
   sentInvitations OrganizationInvitation[] @relation("InvitationsSent")
+  createdProjects Project[] @relation("ProjectsCreated")
 }
 
 
@@ -44,7 +45,8 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   members   OrganizationMember[]
-  invitations OrganizationInvitation[] 
+  invitations OrganizationInvitation[]
+  projects Project[]
 }
 
 
@@ -57,7 +59,8 @@ model OrganizationMember {
 
   user         User         @relation(fields: [userId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
-
+  projectMemberships ProjectMember[]
+  
   @@unique([userId, organizationId])
 }
 
@@ -89,4 +92,45 @@ model OrganizationInvitation {
 
   @@index([organizationId])
   @@index([email])
+}
+
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Project {
+  id             String        @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  status         ProjectStatus @default(ACTIVE)
+  createdById    String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User            @relation("ProjectsCreated", fields: [createdById], references: [id], onDelete: Restrict)
+  members      ProjectMember[]
+
+  // ProjectMember ka composite FK is par tika hai
+  @@unique([id, organizationId])
+  // Org ke projects status ke hisaab se list karne ke liye
+  @@index([organizationId, status])
+}
+
+model ProjectMember {
+  id             String   @id @default(uuid())
+  projectId      String
+  userId         String
+  organizationId String
+  createdAt      DateTime @default(now())
+
+  // Dono relations organizationId share karti hain: yahi same-org ki guarantee deti hai
+  project   Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  orgMember OrganizationMember @relation(fields: [userId, organizationId], references: [userId, organizationId], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
 }
