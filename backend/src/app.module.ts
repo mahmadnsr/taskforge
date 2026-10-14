@@ -14,6 +14,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { GqlThrottlerGuard } from './common/guards/gql-throttler.guard.js';
 import { validateEnv } from './config/env.validation.js';
+import { ProjectsModule } from './projects/projects.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -62,6 +63,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     PrismaModule,
     UsersModule,
     OrganizationsModule,
+    ProjectsModule,
     AuthModule,
   ],
   controllers: [AppController],
