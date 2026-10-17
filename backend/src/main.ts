@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { SafeValidationPipe } from './common/graphql/safe-validation.js';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { AppModule } from './app.module.js';
@@ -31,8 +31,16 @@ async function bootstrap() {
     credentials: false,
   });
 
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+  app.useGlobalPipes(new SafeValidationPipe({ whitelist: true }));
 
   await app.listen(process.env.PORT ?? 3000);
 }
-bootstrap();
+bootstrap().catch((error: unknown) => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('Application failed to start.');
+  } else {
+    console.error('Application failed to start:', error);
+  }
+
+  process.exitCode = 1;
+});

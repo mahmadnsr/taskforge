@@ -15,6 +15,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { GqlThrottlerGuard } from './common/guards/gql-throttler.guard.js';
 import { validateEnv } from './config/env.validation.js';
 import { ProjectsModule } from './projects/projects.module.js';
+import { formatGraphQLError } from './common/graphql/format-error.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -36,29 +37,15 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: true,
-      playground: true,
+      playground: process.env.NODE_ENV !== 'production',
       context: ({ req }: { req: unknown }) => ({ req }),
       includeStacktraceInErrorResponses: process.env.NODE_ENV !== 'production',
-      formatError: (formattedError) => {
-        const extensions = { ...(formattedError.extensions ?? {}) } as Record<
-          string,
-          unknown
-        >;
-        delete extensions.stacktrace;
-
-        // Production me unexpected (500) errors ka asli message client ko nahi dikhana
-        if (
-          process.env.NODE_ENV === 'production' &&
-          extensions.code === 'INTERNAL_SERVER_ERROR'
-        ) {
-          return {
-            message: 'Internal server error',
-            extensions: { code: 'INTERNAL_SERVER_ERROR' },
-          };
-        }
-
-        return { ...formattedError, extensions };
-      },
+      formatError: (formattedError, error) =>
+        formatGraphQLError(
+          formattedError,
+          error,
+          process.env.NODE_ENV === 'production',
+        ),
     }),
     PrismaModule,
     UsersModule,
