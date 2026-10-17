@@ -132,4 +132,26 @@ describe('InvitationsService.acceptInvitation', () => {
       ConflictException,
     );
   });
+
+
+  it('rejects when the accepting user does not exist', async () => {
+    userFindUnique.mockResolvedValue(null);
+
+    await expect(
+      service.acceptInvitation('unknown-user', 'raw-token'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(inviteFindUnique).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('propagates unexpected transaction errors', async () => {
+    const dbError = new Error('Database unavailable');
+
+    transaction.mockRejectedValue(dbError);
+
+    await expect(
+      service.acceptInvitation('u9', 'raw-token'),
+    ).rejects.toBe(dbError);
+  });
 });

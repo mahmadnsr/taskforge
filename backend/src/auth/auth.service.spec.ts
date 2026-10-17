@@ -1,5 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Test } from '@nestjs/testing';
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+
 import { AuthService } from './auth.service.js';
 import { TokenService } from './token.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -9,20 +13,360 @@ import { OrganizationsService } from '../organizations/organizations.service.js'
 describe('AuthService', () => {
   let service: AuthService;
 
+  let prisma: {
+    $transaction: ReturnType<typeof vi.fn>;
+  };
+
+  let usersService: {
+    findByEmail: ReturnType<typeof vi.fn>;
+    findById: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+  };
+
+  let organizationsService: {
+    createWithAdmin: ReturnType<typeof vi.fn>;
+  };
+
+  let tokenService: {
+    signAccessToken: ReturnType<typeof vi.fn>;
+    issueRefreshToken: ReturnType<typeof vi.fn>;
+    consumeRefreshToken: ReturnType<typeof vi.fn>;
+    revokeRefreshToken: ReturnType<typeof vi.fn>;
+  };
+
+  const user = {
+    id: 'user-1',
+    name: 'Ahmad',
+    email: 'ahmad@example.com',
+    passwordHash: 'hashed-password',
+    createdAt: new Date(),
+  };
+
   beforeEach(async () => {
+    vi.clearAllMocks();
+
+    prisma = {
+      $transaction: vi.fn(),
+    };
+
+    usersService = {
+      findByEmail: vi.fn(),
+      findById: vi.fn(),
+      create: vi.fn(),
+    };
+
+    organizationsService = {
+      createWithAdmin: vi.fn(),
+    };
+
+    tokenService = {
+      signAccessToken: vi.fn(),
+      issueRefreshToken: vi.fn(),
+      consumeRefreshToken: vi.fn(),
+      revokeRefreshToken: vi.fn(),
+    };
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         AuthService,
-        { provide: PrismaService, useValue: {} },
-        { provide: UsersService, useValue: {} },
-        { provide: OrganizationsService, useValue: {} },
-        { provide: TokenService, useValue: {} },
+        { provide: PrismaService, useValue: prisma },
+        { provide: UsersService, useValue: usersService },
+        { provide: OrganizationsService, useValue: organizationsService },
+        { provide: TokenService, useValue: tokenService },
       ],
     }).compile();
+
     service = moduleRef.get(AuthService);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  describe('initialization', () => {
+    it('should be defined', () => {
+      expect(service).toBeDefined();
+    });
+  });
+
+  describe('register', () => {
+    const input = {
+      name: 'Ahmad',
+      email: '  AHMAD@EXAMPLE.COM  ',
+      password: 'StrongPassword123!',
+      organizationName: 'TaskForge Team',
+    };
+
+    it('should normalize email and create user and organization in a transaction', async () => {
+      usersService.findByEmail.mockResolvedValue(null);
+      usersService.create.mockResolvedValue(user);
+
+      organizationsService.createWithAdmin.mockResolvedValue({
+        id: 'org-1',
+        name: 'TaskForge Team',
+      });
+
+      prisma.$transaction.mockImplementation(
+        async (callback: (tx: object) => Promise<unknown>) =>
+          callback({ user: {}, organization: {} }),
+      );
+
+      const result = await service.register(input);
+
+      expect(usersService.findByEmail).toHaveBeenCalledWith(
+        'ahmad@example.com',
+      );
+
+      expect(usersService.create).toHaveBeenCalledTimes(1);
+
+      const createCall = usersService.create.mock.calls[0];
+
+      expect(createCall[1]).toMatchObject({
+        name: 'Ahmad',
+        email: 'ahmad@example.com',
+      });
+
+      expect(createCall[1].passwordHash).not.toBe(input.password);
+
+      expect(
+        await bcrypt.compare(
+          input.password,
+          createCall[1].passwordHash,
+        ),
+      ).toBe(true);
+
+      expect(organizationsService.createWithAdmin).toHaveBeenCalledWith(
+        createCall[0],
+        'TaskForge Team',
+        user.id,
+      );
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(user);
+    });
+
+    it('should reject registration when email already exists', async () => {
+      usersService.findByEmail.mockResolvedValue(user);
+
+      await expect(service.register(input)).rejects.toThrow(
+        ConflictException,
+      );
+
+      expect(usersService.findByEmail).toHaveBeenCalledWith(
+        'ahmad@example.com',
+      );
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(usersService.create).not.toHaveBeenCalled();
+    });
+
+    it('should convert Prisma P2002 into a conflict exception', async () => {
+      usersService.findByEmail.mockResolvedValue(null);
+
+      const prismaError = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed',
+        {
+          code: 'P2002',
+          clientVersion: 'test',
+          meta: { target: ['email'] },
+        },
+      );
+
+      prisma.$transaction.mockRejectedValue(prismaError);
+
+      await expect(service.register(input)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('should propagate unexpected transaction errors', async () => {
+      usersService.findByEmail.mockResolvedValue(null);
+
+      const error = new Error('Database unavailable');
+
+      prisma.$transaction.mockRejectedValue(error);
+
+      await expect(service.register(input)).rejects.toThrow(
+        'Database unavailable',
+      );
+    });
+  });
+
+  describe('login', () => {
+    const input = {
+      email: '  AHMAD@EXAMPLE.COM ',
+      password: 'StrongPassword123!',
+    };
+
+    let validUser: typeof user;
+
+    beforeEach(async () => {
+      validUser = {
+        ...user,
+        passwordHash: await bcrypt.hash(input.password, 4),
+      };
+    });
+
+    it('should return access token, refresh token and user for valid credentials', async () => {
+      usersService.findByEmail.mockResolvedValue(validUser);
+      tokenService.signAccessToken.mockResolvedValue('access-token');
+      tokenService.issueRefreshToken.mockResolvedValue('refresh-token');
+
+      const result = await service.login(input);
+
+      expect(usersService.findByEmail).toHaveBeenCalledWith(
+        'ahmad@example.com',
+      );
+
+      expect(tokenService.signAccessToken).toHaveBeenCalledWith(user.id);
+      expect(tokenService.issueRefreshToken).toHaveBeenCalledWith(user.id);
+
+      expect(result).toEqual({
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        user: validUser,
+      });
+    });
+
+    it('should reject login when the user does not exist', async () => {
+      usersService.findByEmail.mockResolvedValue(null);
+
+      await expect(service.login(input)).rejects.toThrow(
+        UnauthorizedException,
+      );
+
+      expect(tokenService.signAccessToken).not.toHaveBeenCalled();
+      expect(tokenService.issueRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it('should reject login when the password is incorrect', async () => {
+      usersService.findByEmail.mockResolvedValue(validUser);
+
+      await expect(
+        service.login({
+          ...input,
+          password: 'WrongPassword123!',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(tokenService.signAccessToken).not.toHaveBeenCalled();
+      expect(tokenService.issueRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it('should propagate an access-token signing error', async () => {
+      usersService.findByEmail.mockResolvedValue(validUser);
+
+      tokenService.signAccessToken.mockRejectedValue(
+        new Error('JWT signing failed'),
+      );
+
+      await expect(service.login(input)).rejects.toThrow(
+        'JWT signing failed',
+      );
+
+      expect(tokenService.issueRefreshToken).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('refresh', () => {
+    it('should rotate refresh token and return new tokens for a valid token', async () => {
+      tokenService.consumeRefreshToken.mockResolvedValue(user.id);
+      usersService.findById.mockResolvedValue(user);
+      tokenService.signAccessToken.mockResolvedValue('new-access-token');
+      tokenService.issueRefreshToken.mockResolvedValue('new-refresh-token');
+
+      const result = await service.refresh('old-refresh-token');
+
+      expect(tokenService.consumeRefreshToken).toHaveBeenCalledWith(
+        'old-refresh-token',
+      );
+
+      expect(usersService.findById).toHaveBeenCalledWith(user.id);
+      expect(tokenService.signAccessToken).toHaveBeenCalledWith(user.id);
+      expect(tokenService.issueRefreshToken).toHaveBeenCalledWith(user.id);
+
+      expect(result).toEqual({
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+        user,
+      });
+    });
+
+    it('should reject an invalid or expired refresh token', async () => {
+      tokenService.consumeRefreshToken.mockResolvedValue(null);
+
+      await expect(
+        service.refresh('invalid-refresh-token'),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(usersService.findById).not.toHaveBeenCalled();
+      expect(tokenService.signAccessToken).not.toHaveBeenCalled();
+    });
+
+    it('should reject refresh when the user no longer exists', async () => {
+      tokenService.consumeRefreshToken.mockResolvedValue('deleted-user');
+      usersService.findById.mockResolvedValue(null);
+
+      await expect(
+        service.refresh('old-refresh-token'),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(tokenService.signAccessToken).not.toHaveBeenCalled();
+      expect(tokenService.issueRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it('should propagate an error when issuing the new refresh token fails', async () => {
+      tokenService.consumeRefreshToken.mockResolvedValue(user.id);
+      usersService.findById.mockResolvedValue(user);
+
+      tokenService.signAccessToken.mockResolvedValue('new-access-token');
+
+      tokenService.issueRefreshToken.mockRejectedValue(
+        new Error('Token storage failed'),
+      );
+
+      await expect(
+        service.refresh('old-refresh-token'),
+      ).rejects.toThrow('Token storage failed');
+    });
+  });
+
+  describe('logout', () => {
+    it('should revoke the refresh token and return true', async () => {
+      tokenService.revokeRefreshToken.mockResolvedValue(undefined);
+
+      const result = await service.logout('refresh-token');
+
+      expect(tokenService.revokeRefreshToken).toHaveBeenCalledWith(
+        'refresh-token',
+      );
+
+      expect(result).toBe(true);
+    });
+
+    it('should propagate a revocation error', async () => {
+      tokenService.revokeRefreshToken.mockRejectedValue(
+        new Error('Database unavailable'),
+      );
+
+      await expect(
+        service.logout('refresh-token'),
+      ).rejects.toThrow('Database unavailable');
+    });
+  });
+
+  describe('me', () => {
+    it('should return the user when found', async () => {
+      usersService.findById.mockResolvedValue(user);
+
+      const result = await service.me(user.id);
+
+      expect(usersService.findById).toHaveBeenCalledWith(user.id);
+      expect(result).toEqual(user);
+    });
+
+    it('should reject when the user does not exist', async () => {
+      usersService.findById.mockResolvedValue(null);
+
+      await expect(
+        service.me('missing-user'),
+      ).rejects.toThrow(UnauthorizedException);
+    });
   });
 });
