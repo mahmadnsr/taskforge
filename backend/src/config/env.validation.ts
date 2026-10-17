@@ -27,7 +27,11 @@ const REQUIRED = [
     }
   
     const nodeEnv = config.NODE_ENV;
-    if (nodeEnv !== undefined && !NODE_ENVS.includes(String(nodeEnv))) {
+
+    if (
+      nodeEnv !== undefined &&
+      (typeof nodeEnv !== 'string' || !NODE_ENVS.includes(nodeEnv))
+    ) {
       errors.push(`NODE_ENV must be one of: ${NODE_ENVS.join(', ')}`);
     }
   
