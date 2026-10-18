@@ -3,17 +3,25 @@
 
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// Learn more: https://pris.ly/d/prisma-schema
+// ============================================================
+// TaskForge — Prisma Schema
+// Database: PostgreSQL
+// ============================================================
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
+// ============================================================
+// ENUMS
+// ============================================================
 
 enum Role {
   ADMIN
@@ -21,6 +29,28 @@ enum Role {
   EMPLOYEE
 }
 
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// ============================================================
+// USER
+// ============================================================
 
 model User {
   id           String   @id @default(uuid())
@@ -30,12 +60,15 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  memberships  OrganizationMember[]
-  refreshTokens RefreshToken[]
+  memberships     OrganizationMember[]
+  refreshTokens   RefreshToken[]
   sentInvitations OrganizationInvitation[] @relation("InvitationsSent")
-  createdProjects Project[] @relation("ProjectsCreated")
+  createdProjects Project[]                @relation("ProjectsCreated")
 }
 
+// ============================================================
+// ORGANIZATION
+// ============================================================
 
 model Organization {
   id        String   @id @default(uuid())
@@ -44,11 +77,14 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members   OrganizationMember[]
+  members     OrganizationMember[]
   invitations OrganizationInvitation[]
-  projects Project[]
+  projects    Project[]
 }
 
+// ============================================================
+// ORGANIZATION MEMBERSHIP
+// ============================================================
 
 model OrganizationMember {
   id             String   @id @default(uuid())
@@ -59,11 +95,17 @@ model OrganizationMember {
 
   user         User         @relation(fields: [userId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
+
   projectMemberships ProjectMember[]
-  
+  tasksCreated       Task[]          @relation("TasksCreated")
+
   @@unique([userId, organizationId])
+  @@index([organizationId])
 }
 
+// ============================================================
+// REFRESH TOKEN
+// ============================================================
 
 model RefreshToken {
   id        String   @id @default(uuid())
@@ -73,7 +115,14 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
 }
+
+// ============================================================
+// ORGANIZATION INVITATION
+// ============================================================
 
 model OrganizationInvitation {
   id             String    @id @default(uuid())
@@ -92,13 +141,12 @@ model OrganizationInvitation {
 
   @@index([organizationId])
   @@index([email])
+  @@index([expiresAt])
 }
 
-
-enum ProjectStatus {
-  ACTIVE
-  ARCHIVED
-}
+// ============================================================
+// PROJECT
+// ============================================================
 
 model Project {
   id             String        @id @default(uuid())
@@ -110,15 +158,20 @@ model Project {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy    User            @relation("ProjectsCreated", fields: [createdById], references: [id], onDelete: Restrict)
-  members      ProjectMember[]
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("ProjectsCreated", fields: [createdById], references: [id], onDelete: Restrict)
 
-  // ProjectMember ka composite FK is par tika hai
+  members ProjectMember[]
+  tasks   Task[]
+
   @@unique([id, organizationId])
-  // Org ke projects status ke hisaab se list karne ke liye
   @@index([organizationId, status])
+  @@index([createdById])
 }
+
+// ============================================================
+// PROJECT MEMBERSHIP
+// ============================================================
 
 model ProjectMember {
   id             String   @id @default(uuid())
@@ -127,10 +180,42 @@ model ProjectMember {
   organizationId String
   createdAt      DateTime @default(now())
 
-  // Dono relations organizationId share karti hain: yahi same-org ki guarantee deti hai
   project   Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
   orgMember OrganizationMember @relation(fields: [userId, organizationId], references: [userId, organizationId], onDelete: Cascade)
 
+  tasksAssigned Task[] @relation("TasksAssigned")
+
   @@unique([projectId, userId])
   @@index([userId])
+  @@index([organizationId])
+}
+
+// ============================================================
+// TASK
+// ============================================================
+
+model Task {
+  id             String       @id @default(uuid())
+  organizationId String
+  projectId      String
+  title          String
+  description    String?
+  status         TaskStatus   @default(TODO)
+  priority       TaskPriority @default(MEDIUM)
+  createdById    String
+  assigneeId     String?
+  dueDate        DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  project   Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  createdBy OrganizationMember @relation("TasksCreated", fields: [createdById, organizationId], references: [userId, organizationId], onDelete: Restrict)
+  assignee  ProjectMember?     @relation("TasksAssigned", fields: [projectId, assigneeId], references: [projectId, userId], onDelete: Restrict)
+
+  @@index([projectId, status])
+  @@index([projectId, priority])
+  @@index([createdById])
+  @@index([assigneeId])
+  @@index([dueDate])
+  @@index([organizationId])
 }

@@ -22,15 +22,21 @@ import type { ValidationError } from '@nestjs/common';
  * `forbidNonWhitelisted` (or a Map-like property) it can be a client-chosen key.
  */
 export const APPROVED_FIELDS: ReadonlySet<string> = new Set([
+  'assigneeId',
   'description',
+  'dueDate',
   'email',
   'name',
   'organizationId',
   'organizationName',
   'password',
+  'priority',
   'projectId',
   'refreshToken',
   'role',
+  'status',
+  'taskId',
+  'title',
   'token',
   'userId',
 ]);
@@ -45,6 +51,7 @@ export const CONSTRAINT_MESSAGES: ReadonlyMap<string, string> = new Map([
   ['isNotEmpty', 'should not be empty'],
   ['isString', 'must be a string'],
   ['isEmail', 'must be an email'],
+  ['isDate', 'must be a valid date'],
   ['isUuid', 'must be a UUID'],
   ['maxLength', 'is too long'],
   ['minLength', 'is too short'],

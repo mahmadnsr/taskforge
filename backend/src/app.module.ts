@@ -16,6 +16,7 @@ import { GqlThrottlerGuard } from './common/guards/gql-throttler.guard.js';
 import { validateEnv } from './config/env.validation.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { formatGraphQLError } from './common/graphql/format-error.js';
+import { TasksModule } from './tasks/tasks.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -52,6 +53,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     OrganizationsModule,
     ProjectsModule,
     AuthModule,
+    TasksModule,
   ],
   controllers: [AppController],
   providers: [

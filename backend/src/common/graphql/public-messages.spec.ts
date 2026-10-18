@@ -152,6 +152,7 @@ describe('DTO fields and rules vs. the validation feedback allowlists', () => {
     IsNotEmpty: 'isNotEmpty',
     IsString: 'isString',
     IsEmail: 'isEmail',
+    IsDate: 'isDate',
     IsUUID: 'isUuid',
     MaxLength: 'maxLength',
     MinLength: 'minLength',

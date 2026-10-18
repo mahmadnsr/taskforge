@@ -60,6 +60,18 @@ const STATUS_OF_PUBLIC_MESSAGE: Record<string, number> = {
   'Name cannot be empty': 400,
   'Nothing to update': 400,
   'Archived projects cannot be updated': 400,
+  'You must be a project member to create tasks': 403,
+  'Assignee must be a member of this project': 400,
+  'Task title cannot be empty': 400,
+  'Invalid due date': 400,
+  'Task not found': 404,
+  'Only admins and managers can update task details': 403,
+  'Provide at least one field to update': 400,
+  'You must be a project member to change task status': 403,
+  'You can only change the status of tasks assigned to you': 403,
+  'You must be a project member to view this task': 403,
+  'You must be a project member to view project tasks': 403,
+  'Invalid task status transition': 400,
 };
 
 const CODE_OF_STATUS: Record<number, string> = {
@@ -960,6 +972,7 @@ describe('custom messages through the real SafeValidationPipe (production)', () 
       'maxLength',
       'minLength',
       'isEnum',
+      'isDate',
     ]);
     expect([...CONSTRAINT_MESSAGES.keys()].sort()).toEqual(
       [...exercised].sort(),

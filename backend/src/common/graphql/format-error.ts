@@ -54,6 +54,18 @@ export const PUBLIC_ERROR_MESSAGES: ReadonlySet<string> = new Set([
   'Name cannot be empty',
   'Nothing to update',
   'Archived projects cannot be updated',
+  'You must be a project member to create tasks',
+  'Assignee must be a member of this project',
+  'Task title cannot be empty',
+  'Invalid due date',
+  'Task not found',
+  'Only admins and managers can update task details',
+  'Provide at least one field to update',
+  'You must be a project member to change task status',
+  'You can only change the status of tasks assigned to you',
+  'You must be a project member to view this task',
+  'You must be a project member to view project tasks',
+  'Invalid task status transition',
 ]);
 
 /** HttpException statuses that may reach clients, with their public code. */
