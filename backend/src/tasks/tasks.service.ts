@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AssignTaskInput } from './dto/assign-task.input.js';
 import { Role, TaskPriority, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateTaskInput } from './dto/create-task.input.js';
@@ -214,6 +215,63 @@ export class TasksService {
     });
   }
 
+
+
+  async assign(userId: string, input: AssignTaskInput) {
+    const { organizationId, taskId, assigneeId } = input;
+    
+    if (assigneeId === undefined) {
+      throw new BadRequestException(
+        'Provide assigneeId or null to unassign the task',
+      );
+    }
+  
+    const membership = await this.getMembership(userId, organizationId);
+  
+    if (
+      membership.role !== Role.ADMIN &&
+      membership.role !== Role.MANAGER
+    ) {
+      throw new ForbiddenException(
+        'Only admins and managers can assign tasks',
+      );
+    }
+  
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, organizationId },
+    });
+  
+    if (!task) {
+      throw new NotFoundException('Task not found');
+    }
+  
+    await this.assertProjectActive(organizationId, task.projectId);
+  
+    if (assigneeId) {
+      const assignee = await this.prisma.projectMember.findUnique({
+        where: {
+          projectId_userId: {
+            projectId: task.projectId,
+            userId: assigneeId,
+          },
+        },
+        select: { id: true },
+      });
+  
+      if (!assignee) {
+        throw new BadRequestException(
+          'Assignee must be a member of this project',
+        );
+      }
+    }
+  
+    return this.prisma.task.update({
+      where: { id: taskId },
+      data: {
+        assigneeId: assigneeId ?? null,
+      },
+    });
+  }
   async changeStatus(userId: string, input: ChangeTaskStatusInput) {
     const { organizationId, taskId, status } = input;
 

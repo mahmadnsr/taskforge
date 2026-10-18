@@ -7,6 +7,7 @@ import { UpdateTaskInput } from './dto/update-task.input.js';
 import { ChangeTaskStatusInput } from './dto/change-task-status.input.js';
 import { Task } from './entities/task.entity.js';
 import { TasksService } from './tasks.service.js';
+import { AssignTaskInput } from './dto/assign-task.input.js';
 
 @Resolver(() => Task)
 @UseGuards(JwtAuthGuard)
@@ -27,6 +28,14 @@ export class TasksResolver {
     @Args('input') input: UpdateTaskInput,
   ) {
     return this.service.update(user.id, input);
+  }
+
+  @Mutation(() => Task)
+  assignTask(
+    @CurrentUser() user: { id: string },
+    @Args('input') input: AssignTaskInput,
+  ) {
+    return this.service.assign(user.id, input);
   }
 
   @Mutation(() => Task)

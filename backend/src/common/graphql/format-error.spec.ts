@@ -37,6 +37,10 @@ import { CreateProjectInput } from '../../projects/dto/create-project.input.js';
 import { UpdateProjectInput } from '../../projects/dto/update-project.input.js';
 
 /** Status that each public message is thrown with in src/ (kept in sync by the tests below). */
+/**
+ * Status that each public message is thrown with in src/
+ * (kept in sync by the tests below).
+ */
 const STATUS_OF_PUBLIC_MESSAGE: Record<string, number> = {
   'Email already registered': 409,
   'Invalid email or password': 401,
@@ -67,6 +71,11 @@ const STATUS_OF_PUBLIC_MESSAGE: Record<string, number> = {
   'Invalid due date': 400,
   'Task not found': 404,
   'Only admins and managers can update task details': 403,
+
+  // Day 4 — Task assignment
+  'Only admins and managers can assign tasks': 403,
+  'Provide assigneeId or null to unassign the task': 400,
+
   'Provide at least one field to update': 400,
   'You must be a project member to change task status': 403,
   'You can only change the status of tasks assigned to you': 403,

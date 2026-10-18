@@ -67,6 +67,8 @@ export const PUBLIC_ERROR_MESSAGES: ReadonlySet<string> = new Set([
   'You must be a project member to view this task',
   'You must be a project member to view project tasks',
   'Invalid task status transition',
+  'Provide assigneeId or null to unassign the task',
+  'Only admins and managers can assign tasks',
 ]);
 
 /** HttpException statuses that may reach clients, with their public code. */
