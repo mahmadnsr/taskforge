@@ -46,11 +46,27 @@ export class TasksService {
     return project;
   }
 
+  private async assertProjectActive(
+    organizationId: string,
+    projectId: string,
+  ) {
+    const project = await this.getProject(organizationId, projectId);
+
+    if (project.status === 'ARCHIVED') {
+      throw new BadRequestException(
+        'Cannot modify tasks in an archived project',
+      );
+    }
+
+    return project;
+  }
+
   async create(userId: string, input: CreateTaskInput) {
     const { organizationId, projectId } = input;
 
     const membership = await this.getMembership(userId, organizationId);
-    await this.getProject(organizationId, projectId);
+
+    await this.assertProjectActive(organizationId, projectId);
 
     if (membership.role === Role.EMPLOYEE) {
       const projectMembership = await this.prisma.projectMember.findUnique({
@@ -109,6 +125,7 @@ export class TasksService {
 
   async update(userId: string, input: UpdateTaskInput) {
     const { organizationId, taskId } = input;
+
     const membership = await this.getMembership(userId, organizationId);
 
     if (
@@ -127,6 +144,8 @@ export class TasksService {
     if (!task) {
       throw new NotFoundException('Task not found');
     }
+
+    await this.assertProjectActive(organizationId, task.projectId);
 
     if (input.title !== undefined && !input.title.trim()) {
       throw new BadRequestException('Task title cannot be empty');
@@ -165,15 +184,25 @@ export class TasksService {
       dueDate?: Date | null;
     } = {};
 
-    if (input.title !== undefined) data.title = input.title.trim();
+    if (input.title !== undefined) {
+      data.title = input.title.trim();
+    }
+
     if (input.description !== undefined) {
       data.description = input.description?.trim() || null;
     }
-    if (input.priority !== undefined) data.priority = input.priority;
+
+    if (input.priority !== undefined) {
+      data.priority = input.priority;
+    }
+
     if (input.assigneeId !== undefined) {
       data.assigneeId = input.assigneeId;
     }
-    if (input.dueDate !== undefined) data.dueDate = input.dueDate;
+
+    if (input.dueDate !== undefined) {
+      data.dueDate = input.dueDate;
+    }
 
     if (Object.keys(data).length === 0) {
       throw new BadRequestException('Provide at least one field to update');
@@ -187,6 +216,7 @@ export class TasksService {
 
   async changeStatus(userId: string, input: ChangeTaskStatusInput) {
     const { organizationId, taskId, status } = input;
+
     const membership = await this.getMembership(userId, organizationId);
 
     const task = await this.prisma.task.findFirst({
@@ -197,9 +227,9 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    if (
-      membership.role === Role.EMPLOYEE
-    ) {
+    await this.assertProjectActive(organizationId, task.projectId);
+
+    if (membership.role === Role.EMPLOYEE) {
       const projectMembership = await this.prisma.projectMember.findUnique({
         where: {
           projectId_userId: {
@@ -278,6 +308,7 @@ export class TasksService {
     projectId: string,
   ) {
     const membership = await this.getMembership(userId, organizationId);
+
     await this.getProject(organizationId, projectId);
 
     if (membership.role === Role.EMPLOYEE) {

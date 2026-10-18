@@ -152,6 +152,24 @@ describe('TasksService', () => {
       expect(prisma.task.create).not.toHaveBeenCalled();
     });
 
+    it('rejects creating a task in an archived project', async () => {
+      const { service, prisma } = setup();
+
+      prisma.project.findUnique.mockResolvedValue({
+        id: PROJECT,
+        organizationId: ORG,
+        status: 'ARCHIVED',
+      });
+
+      await expect(
+        service.create(USER, input),
+      ).rejects.toThrow(
+        'Cannot modify tasks in an archived project',
+      );
+
+      expect(prisma.task.create).not.toHaveBeenCalled();
+    });
+
     it('rejects an EMPLOYEE who is not a project member', async () => {
       const { service, prisma } = setup(Role.EMPLOYEE);
       prisma.projectMember.findUnique.mockResolvedValue(null);
@@ -269,6 +287,25 @@ describe('TasksService', () => {
       });
     });
 
+    it('allows reading a task in an archived project', async () => {
+      const { service, prisma } = setup();
+
+      prisma.project.findUnique.mockResolvedValue({
+        id: PROJECT,
+        organizationId: ORG,
+        status: 'ARCHIVED',
+      });
+
+      await expect(
+        service.get(USER, ORG, TASK),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          id: TASK,
+          projectId: PROJECT,
+        }),
+      );
+    });
+
     it('throws NotFoundException when the task is absent from the organization', async () => {
       const { service, prisma } = setup();
       prisma.task.findFirst.mockResolvedValue(null);
@@ -374,6 +411,26 @@ describe('TasksService', () => {
       });
     });
 
+    it('allows listing tasks in an archived project', async () => {
+      const { service, prisma } = setup();
+
+      prisma.project.findUnique.mockResolvedValue({
+        id: PROJECT,
+        organizationId: ORG,
+        status: 'ARCHIVED',
+      });
+
+      await service.listByProject(USER, ORG, PROJECT);
+
+      expect(prisma.task.findMany).toHaveBeenCalledWith({
+        where: {
+          organizationId: ORG,
+          projectId: PROJECT,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    });
+
     it('returns the result from Prisma', async () => {
       const { service, prisma } = setup();
       const tasks = [{ id: TASK, title: 'Prepare report' }];
@@ -419,6 +476,24 @@ describe('TasksService', () => {
         where: { id: TASK },
         data: { title: 'Updated report' },
       });
+    });
+
+    it('rejects updating a task in an archived project', async () => {
+      const { service, prisma } = setup();
+
+      prisma.project.findUnique.mockResolvedValue({
+        id: PROJECT,
+        organizationId: ORG,
+        status: 'ARCHIVED',
+      });
+
+      await expect(
+        service.update(USER, updateInput),
+      ).rejects.toThrow(
+        'Cannot modify tasks in an archived project',
+      );
+
+      expect(prisma.task.update).not.toHaveBeenCalled();
     });
 
     it('allows clearing nullable fields', async () => {
@@ -585,6 +660,24 @@ describe('TasksService', () => {
         where: { id: TASK },
         data: { status: TaskStatus.IN_PROGRESS },
       });
+    });
+
+    it('rejects changing task status in an archived project', async () => {
+      const { service, prisma } = setup();
+
+      prisma.project.findUnique.mockResolvedValue({
+        id: PROJECT,
+        organizationId: ORG,
+        status: 'ARCHIVED',
+      });
+
+      await expect(
+        service.changeStatus(USER, statusInput),
+      ).rejects.toThrow(
+        'Cannot modify tasks in an archived project',
+      );
+
+      expect(prisma.task.update).not.toHaveBeenCalled();
     });
 
     it('allows IN_PROGRESS to IN_REVIEW', async () => {

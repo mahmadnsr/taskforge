@@ -60,6 +60,7 @@ const STATUS_OF_PUBLIC_MESSAGE: Record<string, number> = {
   'Name cannot be empty': 400,
   'Nothing to update': 400,
   'Archived projects cannot be updated': 400,
+  'Cannot modify tasks in an archived project': 400,
   'You must be a project member to create tasks': 403,
   'Assignee must be a member of this project': 400,
   'Task title cannot be empty': 400,

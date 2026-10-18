@@ -54,6 +54,7 @@ export const PUBLIC_ERROR_MESSAGES: ReadonlySet<string> = new Set([
   'Name cannot be empty',
   'Nothing to update',
   'Archived projects cannot be updated',
+  'Cannot modify tasks in an archived project',
   'You must be a project member to create tasks',
   'Assignee must be a member of this project',
   'Task title cannot be empty',
