@@ -20,8 +20,11 @@ import { TasksModule } from './tasks/tasks.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
+import { TaskCommentsModule } from './task-comments/task-comments.module.js';
+
 @Module({
   imports: [
+    TaskCommentsModule,
     // Distributed tracing, auto-correlated logs, request/job metrics, error
     // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com
     /*ObserveModule.forRoot({

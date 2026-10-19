@@ -44,6 +44,7 @@ export const APPROVED_FIELDS: ReadonlySet<string> = new Set([
   'title',
   'token',
   'userId',
+  'content',
 ]);
 
 /**

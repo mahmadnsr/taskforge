@@ -73,6 +73,9 @@ export const PUBLIC_ERROR_MESSAGES: ReadonlySet<string> = new Set([
   'Offset must be a non-negative integer',
   'Invalid task sort field',
   'Invalid sort direction',
+  'You must be a project member to access task comments',
+  'Comment content cannot be empty',
+  'Cannot add comments to an archived project',
 ]);
 
 /** HttpException statuses that may reach clients, with their public code. */

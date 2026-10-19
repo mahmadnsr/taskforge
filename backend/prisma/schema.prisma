@@ -2,8 +2,9 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 // Learn more: https://pris.ly/d/prisma-schema
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
 // ============================================================
 // TaskForge — Prisma Schema
 // Database: PostgreSQL
@@ -98,6 +99,7 @@ model OrganizationMember {
 
   projectMemberships ProjectMember[]
   tasksCreated       Task[]          @relation("TasksCreated")
+  taskComments       TaskComment[]   @relation("TaskCommentsAuthored")
 
   @@unique([userId, organizationId])
   @@index([organizationId])
@@ -208,14 +210,36 @@ model Task {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
+  comments  TaskComment[]
   project   Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
   createdBy OrganizationMember @relation("TasksCreated", fields: [createdById, organizationId], references: [userId, organizationId], onDelete: Restrict)
   assignee  ProjectMember?     @relation("TasksAssigned", fields: [projectId, assigneeId], references: [projectId, userId], onDelete: Restrict)
 
+  @@unique([id, organizationId])
   @@index([projectId, status])
   @@index([projectId, priority])
   @@index([createdById])
   @@index([assigneeId])
   @@index([dueDate])
   @@index([organizationId])
+}
+
+// ============================================================
+// TASK COMMENT
+// ============================================================
+
+model TaskComment {
+  id             String   @id @default(uuid())
+  organizationId String
+  taskId         String
+  authorId       String
+  content        String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  task   Task               @relation(fields: [taskId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  author OrganizationMember @relation("TaskCommentsAuthored", fields: [authorId, organizationId], references: [userId, organizationId], onDelete: Restrict)
+
+  @@index([taskId, createdAt])
+  @@index([authorId, organizationId])
 }

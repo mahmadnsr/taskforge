@@ -42,6 +42,10 @@ import { UpdateProjectInput } from '../../projects/dto/update-project.input.js';
  * (kept in sync by the tests below).
  */
 const STATUS_OF_PUBLIC_MESSAGE: Record<string, number> = {
+  'Cannot add comments to an archived project': 400,
+  'Comment content cannot be empty': 400,
+  'You must be a project member to access task comments': 403,
+
   'Email already registered': 409,
   'Invalid email or password': 401,
   'Invalid or expired refresh token': 401,
