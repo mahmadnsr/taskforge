@@ -1,4 +1,5 @@
 import { Field, ID, ObjectType } from '@nestjs/graphql';
+import { CommentAuthor } from './comment-author.entity.js';
 
 @ObjectType()
 export class TaskComment {
@@ -22,4 +23,7 @@ export class TaskComment {
 
   @Field()
   updatedAt!: Date;
+
+  @Field(() => CommentAuthor)
+  author!: CommentAuthor;
 }

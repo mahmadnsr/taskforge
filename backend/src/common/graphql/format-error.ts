@@ -76,6 +76,9 @@ export const PUBLIC_ERROR_MESSAGES: ReadonlySet<string> = new Set([
   'You must be a project member to access task comments',
   'Comment content cannot be empty',
   'Cannot add comments to an archived project',
+  'Comment not found',
+  'Cannot modify comments in an archived project',
+  'You can only modify your own comments',
 ]);
 
 /** HttpException statuses that may reach clients, with their public code. */
