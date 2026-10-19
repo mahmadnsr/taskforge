@@ -4,6 +4,11 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import {
+  SortDirection,
+  TaskQueryInput,
+  TaskSortField,
+} from './dto/task-query.input.js';
 import { Role, TaskPriority, TaskStatus } from '@prisma/client';
 import { TasksService } from './tasks.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
@@ -52,6 +57,7 @@ function setup(role: Role | null = Role.ADMIN) {
         assigneeId: ASSIGNEE,
       }),
       findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
       update: vi.fn().mockImplementation(async ({ where, data }) => ({
         id: where.id,
         organizationId: ORG,
@@ -467,6 +473,218 @@ describe('TasksService', () => {
     });
   });
 
+  describe('searchProjectTasks', () => {
+    it('uses default pagination and sorting', async () => {
+      const { service, prisma } = setup();
+
+      prisma.task.findMany.mockResolvedValue([
+        { id: TASK, title: 'Prepare report' },
+      ]);
+      prisma.task.count.mockResolvedValue(1);
+
+      await expect(
+        service.searchProjectTasks(USER, ORG, PROJECT),
+      ).resolves.toEqual({
+        tasks: [{ id: TASK, title: 'Prepare report' }],
+        totalCount: 1,
+        hasNextPage: false,
+        limit: 20,
+        offset: 0,
+      });
+
+      expect(prisma.task.findMany).toHaveBeenCalledWith({
+        where: {
+          organizationId: ORG,
+          projectId: PROJECT,
+        },
+        orderBy: [
+          { createdAt: SortDirection.DESC },
+          { id: 'asc' },
+        ],
+        take: 20,
+        skip: 0,
+      });
+
+      expect(prisma.task.count).toHaveBeenCalledWith({
+        where: {
+          organizationId: ORG,
+          projectId: PROJECT,
+        },
+      });
+    });
+
+    it('applies filters, search, custom pagination and sorting', async () => {
+      const { service, prisma } = setup();
+
+      const filters: TaskQueryInput = {
+        status: TaskStatus.IN_PROGRESS,
+        priority: TaskPriority.HIGH,
+        assigneeId: ASSIGNEE,
+        search: '  Report  ',
+        sortBy: TaskSortField.UPDATED_AT,
+        sortDirection: SortDirection.ASC,
+        limit: 10,
+        offset: 5,
+      };
+
+      await service.searchProjectTasks(
+        USER,
+        ORG,
+        PROJECT,
+        filters,
+      );
+
+      const expectedWhere = {
+        organizationId: ORG,
+        projectId: PROJECT,
+        status: TaskStatus.IN_PROGRESS,
+        priority: TaskPriority.HIGH,
+        assigneeId: ASSIGNEE,
+        OR: [
+          {
+            title: {
+              contains: 'Report',
+              mode: 'insensitive',
+            },
+          },
+          {
+            description: {
+              contains: 'Report',
+              mode: 'insensitive',
+            },
+          },
+        ],
+      };
+
+      expect(prisma.task.findMany).toHaveBeenCalledWith({
+        where: expectedWhere,
+        orderBy: [
+          { updatedAt: SortDirection.ASC },
+          { id: 'asc' },
+        ],
+        take: 10,
+        skip: 5,
+      });
+
+      expect(prisma.task.count).toHaveBeenCalledWith({
+        where: expectedWhere,
+      });
+    });
+
+    it('calculates hasNextPage when more results exist', async () => {
+      const { service, prisma } = setup();
+
+      prisma.task.findMany.mockResolvedValue([
+        { id: 'task-2' },
+        { id: 'task-3' },
+      ]);
+      prisma.task.count.mockResolvedValue(10);
+
+      await expect(
+        service.searchProjectTasks(USER, ORG, PROJECT, {
+          limit: 2,
+          offset: 2,
+        }),
+      ).resolves.toMatchObject({
+        totalCount: 10,
+        hasNextPage: true,
+        limit: 2,
+        offset: 2,
+      });
+    });
+
+    it('rejects a user who is not an organization member', async () => {
+      const { service, prisma } = setup(null);
+
+      await expect(
+        service.searchProjectTasks(USER, ORG, PROJECT),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(prisma.task.findMany).not.toHaveBeenCalled();
+      expect(prisma.task.count).not.toHaveBeenCalled();
+    });
+
+    it('rejects an EMPLOYEE who is not a project member', async () => {
+      const { service, prisma } = setup(Role.EMPLOYEE);
+      prisma.projectMember.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.searchProjectTasks(USER, ORG, PROJECT),
+      ).rejects.toThrow(
+        'You must be a project member to view project tasks',
+      );
+
+      expect(prisma.task.findMany).not.toHaveBeenCalled();
+      expect(prisma.task.count).not.toHaveBeenCalled();
+    });
+
+    it.each([0, -1, 101, 1.5, NaN])(
+      'rejects invalid limit: %s',
+      async (limit) => {
+        const { service, prisma } = setup();
+
+        await expect(
+          service.searchProjectTasks(USER, ORG, PROJECT, {
+            limit,
+          }),
+        ).rejects.toThrow(BadRequestException);
+
+        expect(prisma.task.findMany).not.toHaveBeenCalled();
+        expect(prisma.task.count).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([-1, 1.5, NaN])(
+      'rejects invalid offset: %s',
+      async (offset) => {
+        const { service, prisma } = setup();
+
+        await expect(
+          service.searchProjectTasks(USER, ORG, PROJECT, {
+            offset,
+          }),
+        ).rejects.toThrow(BadRequestException);
+
+        expect(prisma.task.findMany).not.toHaveBeenCalled();
+        expect(prisma.task.count).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects an invalid sort field', async () => {
+      const { service, prisma } = setup();
+
+      await expect(
+        service.searchProjectTasks(USER, ORG, PROJECT, {
+          sortBy: 'invalid' as TaskSortField,
+        }),
+      ).rejects.toThrow('Invalid task sort field');
+
+      expect(prisma.task.findMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects an invalid sort direction', async () => {
+      const { service, prisma } = setup();
+
+      await expect(
+        service.searchProjectTasks(USER, ORG, PROJECT, {
+          sortDirection: 'invalid' as SortDirection,
+        }),
+      ).rejects.toThrow('Invalid sort direction');
+
+      expect(prisma.task.findMany).not.toHaveBeenCalled();
+    });
+
+    it('allows a MANAGER without project membership lookup', async () => {
+      const { service, prisma } = setup(Role.MANAGER);
+
+      await service.searchProjectTasks(USER, ORG, PROJECT);
+
+      expect(prisma.task.findMany).toHaveBeenCalled();
+      expect(prisma.task.count).toHaveBeenCalled();
+      expect(prisma.projectMember.findUnique).not.toHaveBeenCalled();
+    });
+  });
+  
   describe('update', () => {
     const updateInput = {
       organizationId: ORG,

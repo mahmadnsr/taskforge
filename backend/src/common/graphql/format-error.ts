@@ -69,6 +69,10 @@ export const PUBLIC_ERROR_MESSAGES: ReadonlySet<string> = new Set([
   'Invalid task status transition',
   'Provide assigneeId or null to unassign the task',
   'Only admins and managers can assign tasks',
+  'Limit must be an integer between 1 and 100',
+  'Offset must be a non-negative integer',
+  'Invalid task sort field',
+  'Invalid sort direction',
 ]);
 
 /** HttpException statuses that may reach clients, with their public code. */

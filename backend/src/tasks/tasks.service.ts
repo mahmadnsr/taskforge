@@ -4,12 +4,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AssignTaskInput } from './dto/assign-task.input.js';
 import { Role, TaskPriority, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { CreateTaskInput } from './dto/create-task.input.js';
-import { UpdateTaskInput } from './dto/update-task.input.js';
+import { AssignTaskInput } from './dto/assign-task.input.js';
 import { ChangeTaskStatusInput } from './dto/change-task-status.input.js';
+import { CreateTaskInput } from './dto/create-task.input.js';
+import {
+  SortDirection,
+  TaskQueryInput,
+  TaskSortField,
+} from './dto/task-query.input.js';
+import { UpdateTaskInput } from './dto/update-task.input.js';
+import { PaginatedTasks } from './entities/paginated-tasks.entity.js';
 
 @Injectable()
 export class TasksService {
@@ -60,6 +66,24 @@ export class TasksService {
     }
 
     return project;
+  }
+
+  private async assertProjectMembership(
+    userId: string,
+    projectId: string,
+  ) {
+    const projectMembership = await this.prisma.projectMember.findUnique({
+      where: {
+        projectId_userId: { projectId, userId },
+      },
+      select: { id: true },
+    });
+
+    if (!projectMembership) {
+      throw new ForbiddenException(
+        'You must be a project member to view project tasks',
+      );
+    }
   }
 
   async create(userId: string, input: CreateTaskInput) {
@@ -215,8 +239,6 @@ export class TasksService {
     });
   }
 
-
-
   async assign(userId: string, input: AssignTaskInput) {
     const { organizationId, taskId, assigneeId } = input;
 
@@ -272,6 +294,7 @@ export class TasksService {
       },
     });
   }
+
   async changeStatus(userId: string, input: ChangeTaskStatusInput) {
     const { organizationId, taskId, status } = input;
 
@@ -370,23 +393,106 @@ export class TasksService {
     await this.getProject(organizationId, projectId);
 
     if (membership.role === Role.EMPLOYEE) {
-      const projectMembership = await this.prisma.projectMember.findUnique({
-        where: {
-          projectId_userId: { projectId, userId },
-        },
-        select: { id: true },
-      });
-
-      if (!projectMembership) {
-        throw new ForbiddenException(
-          'You must be a project member to view project tasks',
-        );
-      }
+      await this.assertProjectMembership(userId, projectId);
     }
 
     return this.prisma.task.findMany({
       where: { organizationId, projectId },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async searchProjectTasks(
+    userId: string,
+    organizationId: string,
+    projectId: string,
+    filters: TaskQueryInput = {},
+  ): Promise<PaginatedTasks> {
+    const membership = await this.getMembership(userId, organizationId);
+
+    await this.getProject(organizationId, projectId);
+
+    if (membership.role === Role.EMPLOYEE) {
+      await this.assertProjectMembership(userId, projectId);
+    }
+
+    const {
+      status,
+      priority,
+      assigneeId,
+      search,
+      sortBy = TaskSortField.CREATED_AT,
+      sortDirection = SortDirection.DESC,
+      limit = 20,
+      offset = 0,
+    } = filters;
+
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      throw new BadRequestException('Limit must be an integer between 1 and 100');
+    }
+
+    if (!Number.isInteger(offset) || offset < 0) {
+      throw new BadRequestException('Offset must be a non-negative integer');
+    }
+
+    const allowedSortFields = Object.values(TaskSortField);
+    const allowedDirections = Object.values(SortDirection);
+
+    if (!allowedSortFields.includes(sortBy)) {
+      throw new BadRequestException('Invalid task sort field');
+    }
+
+    if (!allowedDirections.includes(sortDirection)) {
+      throw new BadRequestException('Invalid sort direction');
+    }
+
+    const normalizedSearch = search?.trim();
+
+    const where = {
+      organizationId,
+      projectId,
+      ...(status !== undefined && { status }),
+      ...(priority !== undefined && { priority }),
+      ...(assigneeId !== undefined && { assigneeId }),
+      ...(normalizedSearch && {
+        OR: [
+          {
+            title: {
+              contains: normalizedSearch,
+              mode: 'insensitive' as const,
+            },
+          },
+          {
+            description: {
+              contains: normalizedSearch,
+              mode: 'insensitive' as const,
+            },
+          },
+        ],
+      }),
+    };
+
+    const orderBy = [
+      { [sortBy]: sortDirection },
+      { id: 'asc' as const },
+    ];
+
+    const [tasks, totalCount] = await Promise.all([
+      this.prisma.task.findMany({
+        where,
+        orderBy,
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.task.count({ where }),
+    ]);
+
+    return {
+      tasks,
+      totalCount,
+      hasNextPage: offset + tasks.length < totalCount,
+      limit,
+      offset,
+    };
   }
 }

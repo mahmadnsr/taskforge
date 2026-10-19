@@ -6,8 +6,10 @@ import { CreateTaskInput } from './dto/create-task.input.js';
 import { UpdateTaskInput } from './dto/update-task.input.js';
 import { ChangeTaskStatusInput } from './dto/change-task-status.input.js';
 import { Task } from './entities/task.entity.js';
+import { PaginatedTasks } from './entities/paginated-tasks.entity.js';
 import { TasksService } from './tasks.service.js';
 import { AssignTaskInput } from './dto/assign-task.input.js';
+import { TaskQueryInput } from './dto/task-query.input.js';
 
 @Resolver(() => Task)
 @UseGuards(JwtAuthGuard)
@@ -53,6 +55,22 @@ export class TasksResolver {
     @Args('taskId', { type: () => ID }) taskId: string,
   ) {
     return this.service.get(user.id, organizationId, taskId);
+  }
+
+  @Query(() => PaginatedTasks)
+  searchProjectTasks(
+    @CurrentUser() user: { id: string },
+    @Args('organizationId', { type: () => ID }) organizationId: string,
+    @Args('projectId', { type: () => ID }) projectId: string,
+    @Args('filters', { type: () => TaskQueryInput, nullable: true })
+    filters?: TaskQueryInput,
+  ) {
+    return this.service.searchProjectTasks(
+      user.id,
+      organizationId,
+      projectId,
+      filters ?? {},
+    );
   }
 
   @Query(() => [Task])
