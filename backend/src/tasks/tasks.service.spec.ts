@@ -684,7 +684,7 @@ describe('TasksService', () => {
       expect(prisma.projectMember.findUnique).not.toHaveBeenCalled();
     });
   });
-  
+
   describe('update', () => {
     const updateInput = {
       organizationId: ORG,
