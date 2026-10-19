@@ -82,6 +82,10 @@ const STATUS_OF_PUBLIC_MESSAGE: Record<string, number> = {
   'You must be a project member to view this task': 403,
   'You must be a project member to view project tasks': 403,
   'Invalid task status transition': 400,
+  'Limit must be an integer between 1 and 100': 400,
+  'Offset must be a non-negative integer': 400,
+  'Invalid task sort field': 400,
+  'Invalid sort direction': 400,
 };
 
 const CODE_OF_STATUS: Record<number, string> = {
@@ -747,7 +751,7 @@ describe('trusted validation metadata (production)', () => {
     );
     expect(validationErrorsOf(failWith(...many))).toHaveLength(20);
     const withUnsafe = validationErrorsOf(
-      failWith(...many, verr('zzz', { isString: 'x' })),
+      failWith(verr('zzz', { isSecretRule: 'x' }), ...many),
     );
     expect(withUnsafe).toHaveLength(20);
     expect(withUnsafe.at(-1)).toBe(FALLBACK);
@@ -983,6 +987,9 @@ describe('custom messages through the real SafeValidationPipe (production)', () 
       'minLength',
       'isEnum',
       'isDate',
+      'isInt',
+      'min',
+      'max',
     ]);
     expect([...CONSTRAINT_MESSAGES.keys()].sort()).toEqual(
       [...exercised].sort(),

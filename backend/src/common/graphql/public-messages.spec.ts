@@ -157,7 +157,10 @@ describe('DTO fields and rules vs. the validation feedback allowlists', () => {
     MaxLength: 'maxLength',
     MinLength: 'minLength',
     IsEnum: 'isEnum',
-    IsOptional: null, // reports no constraint
+    IsInt: 'isInt',
+    Min: 'min',
+    Max: 'max',
+  IsOptional: null, // reports no constraint
   };
   const texts = sourceFiles().map((path) => ({
     file: relative(SRC, path),
@@ -195,7 +198,7 @@ describe('DTO fields and rules vs. the validation feedback allowlists', () => {
   it('every approved constraint is used by some DTO, and every used one is approved', () => {
     const used = new Set<string>();
     for (const { text } of dtoTexts) {
-      for (const m of text.matchAll(/@(Is\w+|Min\w+|Max\w+)\s*\(/g)) {
+      for (const m of text.matchAll(/@(Is\w+|Min\w*|Max\w*)\s*\(/g)) {
         const c = DECORATOR_TO_CONSTRAINT[m[1]];
         if (c) used.add(c);
       }

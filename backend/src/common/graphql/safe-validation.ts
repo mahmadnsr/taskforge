@@ -26,6 +26,11 @@ export const APPROVED_FIELDS: ReadonlySet<string> = new Set([
   'description',
   'dueDate',
   'email',
+  'limit',
+  'offset',
+  'search',
+  'sortBy',
+  'sortDirection',
   'name',
   'organizationId',
   'organizationName',
@@ -56,6 +61,9 @@ export const CONSTRAINT_MESSAGES: ReadonlyMap<string, string> = new Map([
   ['maxLength', 'is too long'],
   ['minLength', 'is too short'],
   ['isEnum', 'must be one of the allowed values'],
+  ['isInt', 'must be an integer'],
+  ['min', 'is below the minimum allowed value'],
+  ['max', 'exceeds the maximum allowed value'],
 ]);
 
 export const VALIDATION_FALLBACK = 'One or more fields are invalid';
