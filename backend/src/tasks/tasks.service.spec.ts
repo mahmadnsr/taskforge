@@ -593,6 +593,68 @@ describe('TasksService', () => {
       });
     });
 
+    it('returns an empty page when offset exceeds totalCount', async () => {
+      const { service, prisma } = setup();
+      prisma.task.findMany.mockResolvedValue([]);
+      prisma.task.count.mockResolvedValue(5);
+
+      await expect(service.searchProjectTasks(USER, ORG, PROJECT, {
+        limit: 10,
+        offset: 10,
+      })).resolves.toMatchObject({
+        tasks: [],
+        totalCount: 5,
+        hasNextPage: false,
+        limit: 10,
+        offset: 10,
+      });
+    });
+
+    it('sets hasNextPage to false on the last page', async () => {
+      const { service, prisma } = setup();
+      prisma.task.findMany.mockResolvedValue([
+        { id: 'task-4' },
+        { id: 'task-5' },
+      ]);
+      prisma.task.count.mockResolvedValue(5);
+
+      await expect(service.searchProjectTasks(USER, ORG, PROJECT, {
+        limit: 2,
+        offset: 3,
+      })).resolves.toMatchObject({
+        totalCount: 5,
+        hasNextPage: false,
+        limit: 2,
+        offset: 3,
+      });
+    });
+
+    it('ignores whitespace-only search', async () => {
+      const { service, prisma } = setup();
+
+      await service.searchProjectTasks(USER, ORG, PROJECT, {
+        search: '   ',
+      });
+
+      expect(prisma.task.findMany.mock.calls[0][0].where).not.toHaveProperty('OR');
+      expect(prisma.task.count.mock.calls[0][0].where).not.toHaveProperty('OR');
+    });
+
+    it('uses identical filters for task fetching and counting', async () => {
+      const { service, prisma } = setup();
+
+      await service.searchProjectTasks(USER, ORG, PROJECT, {
+        status: TaskStatus.TODO,
+        priority: TaskPriority.HIGH,
+        assigneeId: ASSIGNEE,
+        search: 'report',
+      });
+
+      expect(prisma.task.count.mock.calls[0][0].where).toEqual(
+        prisma.task.findMany.mock.calls[0][0].where,
+      );
+    });
+
     it('rejects a user who is not an organization member', async () => {
       const { service, prisma } = setup(null);
 
