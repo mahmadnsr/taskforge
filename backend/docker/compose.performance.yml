@@ -1,0 +1,16 @@
+services:
+  taskforge-performance-db:
+    image: postgres:18
+    container_name: taskforge-performance-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: taskforge_performance
+      POSTGRES_USER: taskforge_perf
+      POSTGRES_PASSWORD: taskforge_perf_local_only
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - taskforge_performance_data:/var/lib/postgresql
+
+volumes:
+  taskforge_performance_data:
