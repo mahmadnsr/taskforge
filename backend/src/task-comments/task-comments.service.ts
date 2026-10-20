@@ -8,6 +8,11 @@ import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateTaskCommentInput } from './dto/create-task-comment.input.js';
 import { UpdateTaskCommentInput } from './dto/update-task-comment.input.js';
+import { TaskCommentsPaginationInput } from './dto/task-comments-pagination.input.js';
+import {
+  decodeTaskCommentCursor,
+  encodeTaskCommentCursor,
+} from './task-comments-cursor.js';
 
 @Injectable()
 export class TaskCommentsService {
@@ -116,7 +121,9 @@ export class TaskCommentsService {
     }));
   }
 
-  async findByTask(userId: string, organizationId: string, taskId: string) {
+  async findByTask(userId: string, input: TaskCommentsPaginationInput) {
+    const { organizationId, taskId, first = 10, after } = input;
+
     const membership = await this.getMembership(userId, organizationId);
     const task = await this.getTask(organizationId, taskId);
 
@@ -124,9 +131,24 @@ export class TaskCommentsService {
       await this.assertProjectMembership(userId, task.projectId);
     }
 
+    const cursor = after ? decodeTaskCommentCursor(after) : null;
+
     const comments = await this.prisma.taskComment.findMany({
-      where: { organizationId, taskId },
+      where: {
+        organizationId,
+        taskId,
+        ...(cursor && {
+          OR: [
+            { createdAt: { gt: new Date(cursor.createdAt) } },
+            {
+              createdAt: new Date(cursor.createdAt),
+              id: { gt: cursor.id },
+            },
+          ],
+        }),
+      },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: first + 1,
       include: {
         author: {
           select: {
@@ -142,10 +164,27 @@ export class TaskCommentsService {
       },
     });
 
-    return comments.map((comment) => ({
+    const hasMore = comments.length > first;
+    const pageComments = hasMore ? comments.slice(0, first) : comments;
+
+    const items = pageComments.map((comment) => ({
       ...comment,
       author: comment.author.user,
     }));
+
+    const lastComment = pageComments.at(-1);
+
+    return {
+      items,
+      nextCursor:
+        hasMore && lastComment
+          ? encodeTaskCommentCursor({
+              createdAt: lastComment.createdAt.toISOString(),
+              id: lastComment.id,
+            })
+          : null,
+      hasMore,
+    };
   }
 
   private async getComment(

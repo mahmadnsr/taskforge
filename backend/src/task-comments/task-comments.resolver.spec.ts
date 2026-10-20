@@ -36,18 +36,21 @@ describe('TaskCommentsResolver', () => {
 
   it('passes the authenticated user ID and requested scope to the query service', async () => {
     const user = { id: 'user-1' };
-    const expected = [{ id: 'comment-1', content: 'Hello' }];
+    const input = {
+      organizationId: 'org-1',
+      taskId: 'task-1',
+      first: 10,
+    };
+    const expected = {
+      items: [{ id: 'comment-1', content: 'Hello' }],
+      nextCursor: null,
+      hasMore: false,
+    };
     service.findByTask.mockResolvedValueOnce(expected);
 
-    await expect(
-      resolver.taskComments(user, 'org-1', 'task-1'),
-    ).resolves.toBe(expected);
+    await expect(resolver.taskComments(user, input)).resolves.toBe(expected);
 
-    expect(service.findByTask).toHaveBeenCalledWith(
-      'user-1',
-      'org-1',
-      'task-1',
-    );
+    expect(service.findByTask).toHaveBeenCalledWith('user-1', input);
   });
 
   it('passes the authenticated user ID and input to update', async () => {

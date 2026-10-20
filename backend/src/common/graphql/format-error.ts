@@ -79,6 +79,7 @@ export const PUBLIC_ERROR_MESSAGES: ReadonlySet<string> = new Set([
   'Comment not found',
   'Cannot modify comments in an archived project',
   'You can only modify your own comments',
+  'Invalid comment cursor',
 ]);
 
 /** HttpException statuses that may reach clients, with their public code. */

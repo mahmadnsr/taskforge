@@ -8,6 +8,7 @@ import { Role } from '@prisma/client';
 import { TaskCommentsService } from './task-comments.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { CreateTaskCommentInput } from './dto/create-task-comment.input.js';
+import { encodeTaskCommentCursor } from './task-comments-cursor.js';
 
 const ORG = 'org-1';
 const OTHER_ORG = 'org-2';
@@ -257,13 +258,16 @@ describe('TaskCommentsService', () => {
 
       prisma.taskComment.findMany.mockResolvedValue(comments);
 
-      await expect(service.findByTask(USER, ORG, TASK)).resolves.toEqual(
-        expected,
-      );
+      await expect(service.findByTask(USER, { organizationId: ORG, taskId: TASK, first: 10 })).resolves.toEqual({
+        items: expected,
+        nextCursor: null,
+        hasMore: false,
+      });
 
       expect(prisma.taskComment.findMany).toHaveBeenCalledWith({
         where: { organizationId: ORG, taskId: TASK },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        take: 11,
         include: {
           author: {
             select: {
@@ -283,7 +287,7 @@ describe('TaskCommentsService', () => {
     it('rejects a user who is not an organization member', async () => {
       const { service, prisma } = setup(null);
 
-      await expect(service.findByTask(USER, ORG, TASK)).rejects.toThrow(
+      await expect(service.findByTask(USER, { organizationId: ORG, taskId: TASK, first: 10 })).rejects.toThrow(
         ForbiddenException,
       );
 
@@ -294,7 +298,7 @@ describe('TaskCommentsService', () => {
       const { service, prisma } = setup();
       prisma.task.findFirst.mockResolvedValue(null);
 
-      await expect(service.findByTask(USER, ORG, TASK)).rejects.toThrow(
+      await expect(service.findByTask(USER, { organizationId: ORG, taskId: TASK, first: 10 })).rejects.toThrow(
         NotFoundException,
       );
 
@@ -305,7 +309,7 @@ describe('TaskCommentsService', () => {
       const { service, prisma } = setup(Role.EMPLOYEE);
       prisma.projectMember.findUnique.mockResolvedValue(null);
 
-      await expect(service.findByTask(USER, ORG, TASK)).rejects.toThrow(
+      await expect(service.findByTask(USER, { organizationId: ORG, taskId: TASK, first: 10 })).rejects.toThrow(
         'You must be a project member to access task comments',
       );
 
@@ -315,7 +319,7 @@ describe('TaskCommentsService', () => {
     it('allows an EMPLOYEE who belongs to the project', async () => {
       const { service, prisma } = setup(Role.EMPLOYEE);
 
-      await service.findByTask(USER, ORG, TASK);
+      await service.findByTask(USER, { organizationId: ORG, taskId: TASK, first: 10 });
 
       expect(prisma.taskComment.findMany).toHaveBeenCalled();
     });
@@ -323,11 +327,169 @@ describe('TaskCommentsService', () => {
     it('allows listing comments for a MANAGER without project membership', async () => {
       const { service, prisma } = setup(Role.MANAGER);
 
-      await service.findByTask(USER, ORG, TASK);
+      await service.findByTask(USER, { organizationId: ORG, taskId: TASK, first: 10 });
 
       expect(prisma.taskComment.findMany).toHaveBeenCalled();
       expect(prisma.projectMember.findUnique).not.toHaveBeenCalled();
     });
+  });
+
+
+  describe('pagination edge cases', () => {
+    const timestamp = new Date('2026-01-01T00:00:00.000Z');
+    const author = {
+      id: USER,
+      name: 'Ahmad',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+    };
+
+    const makeComment = (id: string, content: string) => ({
+      id,
+      organizationId: ORG,
+      taskId: TASK,
+      authorId: USER,
+      content,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      author: { user: author },
+    });
+
+    it('uses the cursor timestamp and ID to fetch the next page', async () => {
+      const { service, prisma } = setup();
+      const cursor = encodeTaskCommentCursor({
+        createdAt: timestamp.toISOString(),
+        id: 'comment-1',
+      });
+
+      prisma.taskComment.findMany.mockResolvedValue([
+        makeComment('comment-2', 'Second'),
+      ]);
+
+      await service.findByTask(USER, {
+        organizationId: ORG,
+        taskId: TASK,
+        first: 2,
+        after: cursor,
+      });
+
+      expect(prisma.taskComment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            organizationId: ORG,
+            taskId: TASK,
+            OR: [
+              { createdAt: { gt: timestamp } },
+              { createdAt: timestamp, id: { gt: 'comment-1' } },
+            ],
+          },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take: 3,
+        }),
+      );
+    });
+
+    it('rejects an invalid cursor before querying comments', async () => {
+      const { service, prisma } = setup();
+
+      await expect(
+        service.findByTask(USER, {
+          organizationId: ORG,
+          taskId: TASK,
+          first: 10,
+          after: 'not-a-valid-cursor',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prisma.taskComment.findMany).not.toHaveBeenCalled();
+    });
+
+    it('limits the page size and returns a cursor when more comments exist', async () => {
+      const { service, prisma } = setup();
+
+      prisma.taskComment.findMany.mockResolvedValue([
+        makeComment('comment-1', 'First'),
+        makeComment('comment-2', 'Second'),
+        makeComment('comment-3', 'Third'),
+      ]);
+
+      const result = await service.findByTask(USER, {
+        organizationId: ORG,
+        taskId: TASK,
+        first: 2,
+      });
+
+      expect(result.items).toHaveLength(2);
+      expect(result.hasMore).toBe(true);
+      expect(result.nextCursor).toBe(
+        encodeTaskCommentCursor({
+          createdAt: timestamp.toISOString(),
+          id: 'comment-2',
+        }),
+      );
+      expect(prisma.taskComment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ take: 3 }),
+      );
+    });
+    it('returns no next cursor when the final page has no more comments', async () => {
+      const { service, prisma } = setup();
+
+      prisma.taskComment.findMany.mockResolvedValue([
+        makeComment('comment-1', 'First'),
+        makeComment('comment-2', 'Second'),
+      ]);
+
+      const result = await service.findByTask(USER, {
+        organizationId: ORG,
+        taskId: TASK,
+        first: 2,
+      });
+
+      expect(result.items).toHaveLength(2);
+      expect(result.hasMore).toBe(false);
+      expect(result.nextCursor).toBeNull();
+    });
+
+    it('uses comment IDs to paginate comments with identical timestamps', async () => {
+      const { service, prisma } = setup();
+
+      const cursor = encodeTaskCommentCursor({
+        createdAt: timestamp.toISOString(),
+        id: 'comment-1',
+      });
+
+      prisma.taskComment.findMany.mockResolvedValue([
+        makeComment('comment-2', 'Second'),
+        makeComment('comment-3', 'Third'),
+      ]);
+
+      const result = await service.findByTask(USER, {
+        organizationId: ORG,
+        taskId: TASK,
+        first: 2,
+        after: cursor,
+      });
+
+      expect(result.items.map((comment) => comment.id)).toEqual([
+        'comment-2',
+        'comment-3',
+      ]);
+
+      expect(prisma.taskComment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            organizationId: ORG,
+            taskId: TASK,
+            OR: [
+              { createdAt: { gt: timestamp } },
+              { createdAt: timestamp, id: { gt: 'comment-1' } },
+            ],
+          },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take: 3,
+        }),
+      );
+    });
+
   });
 
   describe('update', () => {

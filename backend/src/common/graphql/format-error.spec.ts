@@ -47,6 +47,7 @@ const STATUS_OF_PUBLIC_MESSAGE: Record<string, number> = {
   'Cannot modify comments in an archived project': 400,
   'You can only modify your own comments': 403,
   'Comment content cannot be empty': 400,
+  'Invalid comment cursor': 400,
   'You must be a project member to access task comments': 403,
 
   'Email already registered': 409,

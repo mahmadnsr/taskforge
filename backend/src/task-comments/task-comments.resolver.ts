@@ -4,6 +4,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { CreateTaskCommentInput } from './dto/create-task-comment.input.js';
 import { UpdateTaskCommentInput } from './dto/update-task-comment.input.js';
+import { TaskCommentsPaginationInput } from './dto/task-comments-pagination.input.js';
+import { TaskCommentsPage } from './entities/task-comments-page.entity.js';
 import { TaskComment } from './entities/task-comment.entity.js';
 import { TaskCommentsService } from './task-comments.service.js';
 
@@ -38,12 +40,11 @@ export class TaskCommentsResolver {
     return this.service.delete(user.id, organizationId, taskId, commentId);
   }
 
-  @Query(() => [TaskComment])
+  @Query(() => TaskCommentsPage)
   taskComments(
     @CurrentUser() user: { id: string },
-    @Args('organizationId', { type: () => ID }) organizationId: string,
-    @Args('taskId', { type: () => ID }) taskId: string,
+    @Args('input') input: TaskCommentsPaginationInput,
   ) {
-    return this.service.findByTask(user.id, organizationId, taskId);
+    return this.service.findByTask(user.id, input);
   }
 }
