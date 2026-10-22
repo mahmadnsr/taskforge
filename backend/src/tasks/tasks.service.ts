@@ -7,6 +7,7 @@ import {
 import { NotificationType, Role, TaskPriority, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { QueuesService } from '../queues/queues.service.js';
 import { AssignTaskInput } from './dto/assign-task.input.js';
 import { ChangeTaskStatusInput } from './dto/change-task-status.input.js';
 import { CreateTaskInput } from './dto/create-task.input.js';
@@ -23,6 +24,7 @@ export class TasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly queuesService: QueuesService,
   ) {}
 
   private async getMembership(userId: string, organizationId: string) {
@@ -138,7 +140,7 @@ export class TasksService {
       throw new BadRequestException('Invalid due date');
     }
 
-    return this.prisma.task.create({
+    const task = await this.prisma.task.create({
       data: {
         organizationId,
         projectId,
@@ -150,6 +152,17 @@ export class TasksService {
         assigneeId: input.assigneeId,
       },
     });
+
+    await this.queuesService.enqueueTaskEvent({
+      eventId: `created-${task.id}`,
+      organizationId,
+      taskId: task.id,
+      actorId: userId,
+      eventType: 'TASK_CREATED',
+      occurredAt: new Date().toISOString(),
+    });
+
+    return task;
   }
 
   async update(userId: string, input: UpdateTaskInput) {
@@ -241,7 +254,7 @@ export class TasksService {
       input.assigneeId !== undefined &&
       input.assigneeId !== task.assigneeId;
 
-    return this.prisma.$transaction(async (tx) => {
+    const updatedTask = await this.prisma.$transaction(async (tx) => {
       const updatedTask = await tx.task.update({
         where: { id: taskId },
         data,
@@ -263,6 +276,19 @@ export class TasksService {
 
       return updatedTask;
     });
+
+    if (assigneeChanged && input.assigneeId) {
+      await this.queuesService.enqueueTaskEvent({
+        eventId: `assigned-${updatedTask.id}-${Date.now()}`,
+        organizationId,
+        taskId: updatedTask.id,
+        actorId: userId,
+        eventType: 'TASK_ASSIGNED',
+        occurredAt: new Date().toISOString(),
+      });
+    }
+
+    return updatedTask;
   }
 
   async assign(userId: string, input: AssignTaskInput) {
@@ -316,7 +342,7 @@ export class TasksService {
     const normalizedAssigneeId = assigneeId ?? null;
     const assigneeChanged = normalizedAssigneeId !== task.assigneeId;
 
-    return this.prisma.$transaction(async (tx) => {
+    const updatedTask = await this.prisma.$transaction(async (tx) => {
       const updatedTask = await tx.task.update({
         where: { id: taskId },
         data: {
@@ -340,6 +366,19 @@ export class TasksService {
 
       return updatedTask;
     });
+
+    if (assigneeChanged && normalizedAssigneeId) {
+      await this.queuesService.enqueueTaskEvent({
+        eventId: `assigned-${updatedTask.id}-${Date.now()}`,
+        organizationId,
+        taskId: updatedTask.id,
+        actorId: userId,
+        eventType: 'TASK_ASSIGNED',
+        occurredAt: new Date().toISOString(),
+      });
+    }
+
+    return updatedTask;
   }
 
   async changeStatus(userId: string, input: ChangeTaskStatusInput) {
@@ -392,7 +431,7 @@ export class TasksService {
       throw new BadRequestException('Invalid task status transition');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updatedTask = await this.prisma.$transaction(async (tx) => {
       const updatedTask = await tx.task.update({
         where: { id: taskId },
         data: { status },
@@ -410,6 +449,17 @@ export class TasksService {
 
       return updatedTask;
     });
+
+    await this.queuesService.enqueueTaskEvent({
+      eventId: `status-${updatedTask.id}-${Date.now()}`,
+      organizationId,
+      taskId: updatedTask.id,
+      actorId: userId,
+      eventType: 'TASK_STATUS_CHANGED',
+      occurredAt: new Date().toISOString(),
+    });
+
+    return updatedTask;
   }
 
   async get(userId: string, organizationId: string, taskId: string) {

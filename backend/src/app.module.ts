@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { QueuesModule } from './queues/queues.module.js';
 import { createObserveModule } from '@nestjs/observe';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
@@ -59,6 +60,7 @@ import { TaskCommentsModule } from './task-comments/task-comments.module.js';
     AuthModule,
     TasksModule,
     NotificationsModule,
+    QueuesModule,
   ],
   controllers: [AppController],
   providers: [

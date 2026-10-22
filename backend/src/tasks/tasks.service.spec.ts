@@ -95,12 +95,17 @@ function setup(role: Role | null = Role.ADMIN) {
     createForRecipient: vi.fn().mockResolvedValue({ id: 'notification-1' }),
   };
 
+  const queuesService = {
+    enqueueTaskEvent: vi.fn().mockResolvedValue({ id: 'event-1' }),
+  };
+
   const service = new TasksService(
     prisma as unknown as PrismaService,
     notificationsService as unknown as NotificationsService,
+    queuesService as never,
   );
 
-  return { service, prisma, tx, notificationsService };
+  return { service, prisma, tx, notificationsService, queuesService };
 }
 
 const input = {
@@ -132,6 +137,23 @@ describe('TasksService', () => {
           assigneeId: undefined,
         },
       });
+    });
+
+    it('enqueues a task-created background event', async () => {
+      const { service, queuesService } = setup();
+
+      await service.create(USER, input);
+
+      expect(queuesService.enqueueTaskEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventId: `created-${TASK}`,
+          organizationId: ORG,
+          taskId: TASK,
+          actorId: USER,
+          eventType: 'TASK_CREATED',
+          occurredAt: expect.any(String),
+        }),
+      );
     });
 
     it('uses the supplied priority and due date', async () => {
