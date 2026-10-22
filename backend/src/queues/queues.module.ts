@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { QueuesService } from './queues.service.js';
-import { QueuesProcessor } from './queues.processor.js';
 
 @Module({
   imports: [
@@ -19,7 +18,7 @@ import { QueuesProcessor } from './queues.processor.js';
       name: 'taskforge',
     }),
   ],
-  providers: [QueuesService, QueuesProcessor],
+  providers: [QueuesService],
   exports: [QueuesService],
 })
 export class QueuesModule {}

@@ -140,29 +140,38 @@ export class TasksService {
       throw new BadRequestException('Invalid due date');
     }
 
-    const task = await this.prisma.task.create({
-      data: {
-        organizationId,
-        projectId,
-        title: input.title.trim(),
-        description: input.description?.trim() || null,
-        priority: input.priority ?? TaskPriority.MEDIUM,
-        dueDate: input.dueDate,
-        createdById: userId,
-        assigneeId: input.assigneeId,
-      },
-    });
+    const occurredAt = new Date().toISOString();
 
-    await this.queuesService.enqueueTaskEvent({
-      eventId: `created-${task.id}`,
-      organizationId,
-      taskId: task.id,
-      actorId: userId,
-      eventType: 'TASK_CREATED',
-      occurredAt: new Date().toISOString(),
-    });
+    return this.prisma.$transaction(async (tx) => {
+      const task = await tx.task.create({
+        data: {
+          organizationId,
+          projectId,
+          title: input.title.trim(),
+          description: input.description?.trim() || null,
+          priority: input.priority ?? TaskPriority.MEDIUM,
+          dueDate: input.dueDate,
+          createdById: userId,
+          assigneeId: input.assigneeId,
+        },
+      });
 
-    return task;
+      await tx.outboxEvent.create({
+        data: {
+          eventType: 'TASK_CREATED',
+          payload: {
+            eventId: `created-${task.id}`,
+            organizationId,
+            taskId: task.id,
+            actorId: userId,
+            eventType: 'TASK_CREATED',
+            occurredAt,
+          },
+        },
+      });
+
+      return task;
+    });
   }
 
   async update(userId: string, input: UpdateTaskInput) {
@@ -274,19 +283,26 @@ export class TasksService {
         });
       }
 
+      if (assigneeChanged && input.assigneeId) {
+        const occurredAt = new Date().toISOString();
+
+        await tx.outboxEvent.create({
+          data: {
+            eventType: 'TASK_ASSIGNED',
+            payload: {
+              eventId: `assigned-${updatedTask.id}-${Date.now()}`,
+              organizationId,
+              taskId: updatedTask.id,
+              actorId: userId,
+              eventType: 'TASK_ASSIGNED',
+              occurredAt,
+            },
+          },
+        });
+      }
+
       return updatedTask;
     });
-
-    if (assigneeChanged && input.assigneeId) {
-      await this.queuesService.enqueueTaskEvent({
-        eventId: `assigned-${updatedTask.id}-${Date.now()}`,
-        organizationId,
-        taskId: updatedTask.id,
-        actorId: userId,
-        eventType: 'TASK_ASSIGNED',
-        occurredAt: new Date().toISOString(),
-      });
-    }
 
     return updatedTask;
   }
@@ -364,19 +380,26 @@ export class TasksService {
         });
       }
 
+      if (assigneeChanged && normalizedAssigneeId) {
+        const occurredAt = new Date().toISOString();
+
+        await tx.outboxEvent.create({
+          data: {
+            eventType: 'TASK_ASSIGNED',
+            payload: {
+              eventId: `assigned-${updatedTask.id}-${Date.now()}`,
+              organizationId,
+              taskId: updatedTask.id,
+              actorId: userId,
+              eventType: 'TASK_ASSIGNED',
+              occurredAt,
+            },
+          },
+        });
+      }
+
       return updatedTask;
     });
-
-    if (assigneeChanged && normalizedAssigneeId) {
-      await this.queuesService.enqueueTaskEvent({
-        eventId: `assigned-${updatedTask.id}-${Date.now()}`,
-        organizationId,
-        taskId: updatedTask.id,
-        actorId: userId,
-        eventType: 'TASK_ASSIGNED',
-        occurredAt: new Date().toISOString(),
-      });
-    }
 
     return updatedTask;
   }
@@ -447,16 +470,23 @@ export class TasksService {
         });
       }
 
-      return updatedTask;
-    });
+      const occurredAt = new Date().toISOString();
 
-    await this.queuesService.enqueueTaskEvent({
-      eventId: `status-${updatedTask.id}-${Date.now()}`,
-      organizationId,
-      taskId: updatedTask.id,
-      actorId: userId,
-      eventType: 'TASK_STATUS_CHANGED',
-      occurredAt: new Date().toISOString(),
+      await tx.outboxEvent.create({
+        data: {
+          eventType: 'TASK_STATUS_CHANGED',
+          payload: {
+            eventId: `status-${updatedTask.id}-${Date.now()}`,
+            organizationId,
+            taskId: updatedTask.id,
+            actorId: userId,
+            eventType: 'TASK_STATUS_CHANGED',
+            occurredAt,
+          },
+        },
+      });
+
+      return updatedTask;
     });
 
     return updatedTask;

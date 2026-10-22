@@ -53,6 +53,19 @@ enum NotificationType {
   TASK_ASSIGNED
   TASK_STATUS_CHANGED
   TASK_COMMENTED
+  TASK_DEADLINE_REMINDER
+}
+
+enum TaskReminderType {
+  DUE_24_HOURS
+  DUE_1_HOUR
+}
+
+enum TaskReminderStatus {
+  PENDING
+  QUEUED
+  SENT
+  SKIPPED
 }
 
 // ============================================================
@@ -72,6 +85,7 @@ model User {
   sentInvitations OrganizationInvitation[] @relation("InvitationsSent")
   createdProjects Project[]                @relation("ProjectsCreated")
   notifications   Notification[]           @relation("NotificationRecipient")
+  taskReminders   TaskReminder[]
 }
 
 // ============================================================
@@ -89,6 +103,7 @@ model Organization {
   invitations   OrganizationInvitation[]
   projects      Project[]
   notifications Notification[]
+  taskReminders TaskReminder[]
 }
 
 // ============================================================
@@ -220,6 +235,7 @@ model Task {
 
   comments      TaskComment[]
   notifications Notification[]
+  reminders     TaskReminder[]
   project       Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
   createdBy     OrganizationMember @relation("TasksCreated", fields: [createdById, organizationId], references: [userId, organizationId], onDelete: Restrict)
   assignee      ProjectMember?     @relation("TasksAssigned", fields: [projectId, assigneeId], references: [projectId, userId], onDelete: Restrict)
@@ -273,5 +289,56 @@ model Notification {
 
   @@index([recipientId, createdAt, id])
   @@index([recipientId, readAt])
+  @@index([organizationId])
+}
+
+// ============================================================
+// TRANSACTIONAL OUTBOX
+// ============================================================
+
+model OutboxEvent {
+  id            String    @id @default(uuid())
+  eventType     String
+  payload       Json
+  createdAt     DateTime  @default(now())
+  publishedAt   DateTime?
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  lockedAt      DateTime?
+  lockedBy      String?
+  lastError     String?
+
+  @@index([publishedAt, nextAttemptAt, createdAt])
+  @@index([lockedAt])
+}
+
+
+// ============================================================
+// TASK DEADLINE REMINDERS
+// ============================================================
+
+model TaskReminder {
+  id             String             @id @default(uuid())
+  taskId         String
+  organizationId String
+  recipientId    String
+  type           TaskReminderType
+  status         TaskReminderStatus @default(PENDING)
+  dueDate          DateTime
+  notificationAt   DateTime?
+  emailQueuedAt    DateTime?
+  emailSentAt      DateTime?
+  lastError        String?
+  sentAt           DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  task         Task         @relation(fields: [taskId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  recipient    User         @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dueDate, recipientId, type])
+  @@index([status, dueDate])
+  @@index([recipientId, status])
   @@index([organizationId])
 }

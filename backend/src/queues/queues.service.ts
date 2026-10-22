@@ -20,6 +20,7 @@ export interface EmailJobPayload {
   subject: string;
   text: string;
   idempotencyKey: string;
+  reminderId?: string;
 }
 
 @Injectable()

@@ -32,6 +32,10 @@ const TASK = 'task-1';
 function setup(role: Role | null = Role.ADMIN) {
   const tx = {
     task: {
+      create: vi.fn().mockImplementation(async ({ data }) => ({
+        id: TASK,
+        ...data,
+      })),
       update: vi.fn().mockImplementation(async ({ where, data }) => ({
         id: where.id,
         organizationId: ORG,
@@ -45,6 +49,12 @@ function setup(role: Role | null = Role.ADMIN) {
     },
     notification: {
       create: vi.fn().mockResolvedValue({ id: 'notification-1' }),
+    },
+    outboxEvent: {
+      create: vi.fn().mockImplementation(async ({ data }) => ({
+        id: 'outbox-1',
+        ...data,
+      })),
     },
   };
 
@@ -117,7 +127,7 @@ const input = {
 describe('TasksService', () => {
   describe('create', () => {
     it('creates a task with trimmed fields and default priority', async () => {
-      const { service, prisma } = setup();
+      const { service, tx } = setup();
 
       await service.create(USER, {
         ...input,
@@ -125,7 +135,7 @@ describe('TasksService', () => {
         description: '  Monthly report  ',
       });
 
-      expect(prisma.task.create).toHaveBeenCalledWith({
+      expect(tx.task.create).toHaveBeenCalledWith({
         data: {
           organizationId: ORG,
           projectId: PROJECT,
@@ -139,25 +149,30 @@ describe('TasksService', () => {
       });
     });
 
-    it('enqueues a task-created background event', async () => {
-      const { service, queuesService } = setup();
+    it('writes a task-created event to the transactional outbox', async () => {
+      const { service, tx, queuesService } = setup();
 
       await service.create(USER, input);
 
-      expect(queuesService.enqueueTaskEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          eventId: `created-${TASK}`,
-          organizationId: ORG,
-          taskId: TASK,
-          actorId: USER,
+      expect(tx.outboxEvent.create).toHaveBeenCalledWith({
+        data: {
           eventType: 'TASK_CREATED',
-          occurredAt: expect.any(String),
-        }),
-      );
+          payload: expect.objectContaining({
+            eventId: `created-${TASK}`,
+            organizationId: ORG,
+            taskId: TASK,
+            actorId: USER,
+            eventType: 'TASK_CREATED',
+            occurredAt: expect.any(String),
+          }),
+        },
+      });
+
+      expect(queuesService.enqueueTaskEvent).not.toHaveBeenCalled();
     });
 
     it('uses the supplied priority and due date', async () => {
-      const { service, prisma } = setup();
+      const { service, tx } = setup();
       const dueDate = new Date('2027-01-15T00:00:00.000Z');
 
       await service.create(USER, {
@@ -166,7 +181,7 @@ describe('TasksService', () => {
         dueDate,
       });
 
-      expect(prisma.task.create).toHaveBeenCalledWith({
+      expect(tx.task.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           priority: TaskPriority.HIGH,
           dueDate,
@@ -183,6 +198,7 @@ describe('TasksService', () => {
 
       expect(prisma.project.findUnique).not.toHaveBeenCalled();
       expect(prisma.task.create).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('rejects a project that does not belong to the organization', async () => {
@@ -238,19 +254,19 @@ describe('TasksService', () => {
     });
 
     it('allows an EMPLOYEE who belongs to the project', async () => {
-      const { service, prisma } = setup(Role.EMPLOYEE);
+      const { service, tx } = setup(Role.EMPLOYEE);
 
       await service.create(USER, input);
 
-      expect(prisma.task.create).toHaveBeenCalled();
+      expect(tx.task.create).toHaveBeenCalled();
     });
 
     it('allows a MANAGER to create a task', async () => {
-      const { service, prisma } = setup(Role.MANAGER);
+      const { service, prisma , tx } = setup(Role.MANAGER);
 
       await service.create(USER, input);
 
-      expect(prisma.task.create).toHaveBeenCalled();
+      expect(tx.task.create).toHaveBeenCalled();
       expect(prisma.projectMember.findUnique).not.toHaveBeenCalled();
     });
 
@@ -269,14 +285,14 @@ describe('TasksService', () => {
     });
 
     it('accepts an assignee who belongs to the project', async () => {
-      const { service, prisma } = setup();
+      const { service, tx } = setup();
 
       await service.create(USER, {
         ...input,
         assigneeId: ASSIGNEE,
       });
 
-      expect(prisma.task.create).toHaveBeenCalledWith({
+      expect(tx.task.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           assigneeId: ASSIGNEE,
           createdById: USER,
@@ -310,7 +326,6 @@ describe('TasksService', () => {
       expect(prisma.task.create).not.toHaveBeenCalled();
     });
   });
-
   describe('get', () => {
     it('rejects a user who is not an organization member', async () => {
       const { service, prisma } = setup(null);
