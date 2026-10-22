@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
+import type { NotificationsService } from '../notifications/notifications.service.js';
 import { TaskCommentsService } from './task-comments.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { CreateTaskCommentInput } from './dto/create-task-comment.input.js';
@@ -17,17 +18,46 @@ const TASK = 'task-1';
 const PROJECT = 'project-1';
 
 function setup(role: Role | null = Role.ADMIN) {
-  const prisma = {
+  const tx = {
+    taskComment: {
+      create: vi.fn().mockImplementation(async ({ data }) => ({
+        id: 'comment-1',
+        ...data,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        author: {
+          user: {
+            id: USER,
+            name: 'Ahmad',
+            createdAt: new Date('2025-01-01T00:00:00.000Z'),
+          },
+        },
+      })),
+    },
     organizationMember: {
-      findUnique: vi.fn().mockResolvedValue(
-        role ? { userId: USER, organizationId: ORG, role } : null,
-      ),
+      findUnique: vi.fn().mockResolvedValue({ userId: USER }),
+    },
+    notification: {
+      create: vi.fn().mockResolvedValue({ id: 'notification-1' }),
+    },
+  };
+
+  const prisma = {
+    $transaction: vi.fn(async (callback) => callback(tx)),
+    organizationMember: {
+      findUnique: vi
+        .fn()
+        .mockResolvedValue(
+          role ? { userId: USER, organizationId: ORG, role } : null,
+        ),
     },
     task: {
       findFirst: vi.fn().mockResolvedValue({
         id: TASK,
         organizationId: ORG,
         projectId: PROJECT,
+        title: 'Prepare report',
+        assigneeId: 'assignee-1',
         project: { status: 'ACTIVE' },
       }),
     },
@@ -79,11 +109,16 @@ function setup(role: Role | null = Role.ADMIN) {
     },
   };
 
+  const notificationsService = {
+    createForRecipient: vi.fn().mockResolvedValue({ id: 'notification-1' }),
+  };
+
   const service = new TaskCommentsService(
     prisma as unknown as PrismaService,
+    notificationsService as unknown as NotificationsService,
   );
 
-  return { service, prisma };
+  return { service, prisma, tx, notificationsService };
 }
 
 const input = {
@@ -95,14 +130,14 @@ const input = {
 describe('TaskCommentsService', () => {
   describe('create', () => {
     it('creates a comment with trimmed content and the authenticated author', async () => {
-      const { service, prisma } = setup();
+      const { service, tx } = setup();
 
       await service.create(USER, {
         ...input,
         content: '  A useful comment  ',
       });
 
-      expect(prisma.taskComment.create).toHaveBeenCalledWith({
+      expect(tx.taskComment.create).toHaveBeenCalledWith({
         data: {
           organizationId: ORG,
           taskId: TASK,
@@ -125,26 +160,61 @@ describe('TaskCommentsService', () => {
       });
     });
 
+    it('notifies the task assignee when another user comments', async () => {
+      const { service, notificationsService } = setup();
+
+      await service.create(USER, input);
+
+      expect(notificationsService.createForRecipient).toHaveBeenCalledOnce();
+      expect(notificationsService.createForRecipient).toHaveBeenCalledWith(
+        expect.anything(),
+        {
+          organizationId: ORG,
+          recipientId: 'assignee-1',
+          taskId: TASK,
+          type: 'TASK_COMMENTED',
+          message: 'New comment on task: Prepare report',
+        },
+      );
+    });
+
+    it('does not notify the assignee when they comment on their own task', async () => {
+      const { service, prisma, notificationsService } = setup();
+
+      prisma.task.findFirst.mockResolvedValue({
+        id: TASK,
+        organizationId: ORG,
+        projectId: PROJECT,
+        title: 'Prepare report',
+        assigneeId: USER,
+        project: { status: 'ACTIVE' },
+      });
+
+      await service.create(USER, input);
+
+      expect(notificationsService.createForRecipient).not.toHaveBeenCalled();
+    });
+
     it('rejects whitespace-only content', async () => {
-      const { service, prisma } = setup();
+      const { service, prisma, tx } = setup();
 
       await expect(
         service.create(USER, { ...input, content: '   \n\t  ' }),
       ).rejects.toThrow(BadRequestException);
 
       expect(prisma.organizationMember.findUnique).not.toHaveBeenCalled();
-      expect(prisma.taskComment.create).not.toHaveBeenCalled();
+      expect(tx.taskComment.create).not.toHaveBeenCalled();
     });
 
     it('rejects a user who is not an organization member', async () => {
-      const { service, prisma } = setup(null);
+      const { service, prisma, tx } = setup(null);
 
       await expect(service.create(USER, input)).rejects.toThrow(
         ForbiddenException,
       );
 
       expect(prisma.task.findFirst).not.toHaveBeenCalled();
-      expect(prisma.taskComment.create).not.toHaveBeenCalled();
+      expect(tx.taskComment.create).not.toHaveBeenCalled();
     });
 
     it('scopes task lookup to the requested organization', async () => {
@@ -161,24 +231,26 @@ describe('TaskCommentsService', () => {
           id: true,
           organizationId: true,
           projectId: true,
+          title: true,
+          assigneeId: true,
           project: { select: { status: true } },
         },
       });
     });
 
     it('rejects a task that does not exist in the organization', async () => {
-      const { service, prisma } = setup();
+      const { service, prisma, tx } = setup();
       prisma.task.findFirst.mockResolvedValue(null);
 
       await expect(service.create(USER, input)).rejects.toThrow(
         NotFoundException,
       );
 
-      expect(prisma.taskComment.create).not.toHaveBeenCalled();
+      expect(tx.taskComment.create).not.toHaveBeenCalled();
     });
 
     it('rejects comments on archived projects', async () => {
-      const { service, prisma } = setup();
+      const { service, prisma, tx } = setup();
       prisma.task.findFirst.mockResolvedValue({
         id: TASK,
         organizationId: ORG,
@@ -190,22 +262,22 @@ describe('TaskCommentsService', () => {
         'Cannot add comments to an archived project',
       );
 
-      expect(prisma.taskComment.create).not.toHaveBeenCalled();
+      expect(tx.taskComment.create).not.toHaveBeenCalled();
     });
 
     it('rejects an EMPLOYEE who is not a project member', async () => {
-      const { service, prisma } = setup(Role.EMPLOYEE);
+      const { service, prisma, tx } = setup(Role.EMPLOYEE);
       prisma.projectMember.findUnique.mockResolvedValue(null);
 
       await expect(service.create(USER, input)).rejects.toThrow(
         'You must be a project member to access task comments',
       );
 
-      expect(prisma.taskComment.create).not.toHaveBeenCalled();
+      expect(tx.taskComment.create).not.toHaveBeenCalled();
     });
 
     it('allows an EMPLOYEE who belongs to the project', async () => {
-      const { service, prisma } = setup(Role.EMPLOYEE);
+      const { service, prisma, tx } = setup(Role.EMPLOYEE);
 
       await service.create(USER, input);
 
@@ -215,24 +287,24 @@ describe('TaskCommentsService', () => {
         },
         select: { id: true },
       });
-      expect(prisma.taskComment.create).toHaveBeenCalled();
+      expect(tx.taskComment.create).toHaveBeenCalled();
     });
 
     it('allows a MANAGER without requiring project membership', async () => {
-      const { service, prisma } = setup(Role.MANAGER);
+      const { service, prisma, tx } = setup(Role.MANAGER);
 
       await service.create(USER, input);
 
-      expect(prisma.taskComment.create).toHaveBeenCalled();
+      expect(tx.taskComment.create).toHaveBeenCalled();
       expect(prisma.projectMember.findUnique).not.toHaveBeenCalled();
     });
 
     it('allows an ADMIN without requiring project membership', async () => {
-      const { service, prisma } = setup(Role.ADMIN);
+      const { service, prisma, tx } = setup(Role.ADMIN);
 
       await service.create(USER, input);
 
-      expect(prisma.taskComment.create).toHaveBeenCalled();
+      expect(tx.taskComment.create).toHaveBeenCalled();
       expect(prisma.projectMember.findUnique).not.toHaveBeenCalled();
     });
   });
@@ -258,7 +330,13 @@ describe('TaskCommentsService', () => {
 
       prisma.taskComment.findMany.mockResolvedValue(comments);
 
-      await expect(service.findByTask(USER, { organizationId: ORG, taskId: TASK, first: 10 })).resolves.toEqual({
+      await expect(
+        service.findByTask(USER, {
+          organizationId: ORG,
+          taskId: TASK,
+          first: 10,
+        }),
+      ).resolves.toEqual({
         items: expected,
         nextCursor: null,
         hasMore: false,
@@ -287,9 +365,13 @@ describe('TaskCommentsService', () => {
     it('rejects a user who is not an organization member', async () => {
       const { service, prisma } = setup(null);
 
-      await expect(service.findByTask(USER, { organizationId: ORG, taskId: TASK, first: 10 })).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.findByTask(USER, {
+          organizationId: ORG,
+          taskId: TASK,
+          first: 10,
+        }),
+      ).rejects.toThrow(ForbiddenException);
 
       expect(prisma.taskComment.findMany).not.toHaveBeenCalled();
     });
@@ -298,9 +380,13 @@ describe('TaskCommentsService', () => {
       const { service, prisma } = setup();
       prisma.task.findFirst.mockResolvedValue(null);
 
-      await expect(service.findByTask(USER, { organizationId: ORG, taskId: TASK, first: 10 })).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.findByTask(USER, {
+          organizationId: ORG,
+          taskId: TASK,
+          first: 10,
+        }),
+      ).rejects.toThrow(NotFoundException);
 
       expect(prisma.taskComment.findMany).not.toHaveBeenCalled();
     });
@@ -309,9 +395,13 @@ describe('TaskCommentsService', () => {
       const { service, prisma } = setup(Role.EMPLOYEE);
       prisma.projectMember.findUnique.mockResolvedValue(null);
 
-      await expect(service.findByTask(USER, { organizationId: ORG, taskId: TASK, first: 10 })).rejects.toThrow(
-        'You must be a project member to access task comments',
-      );
+      await expect(
+        service.findByTask(USER, {
+          organizationId: ORG,
+          taskId: TASK,
+          first: 10,
+        }),
+      ).rejects.toThrow('You must be a project member to access task comments');
 
       expect(prisma.taskComment.findMany).not.toHaveBeenCalled();
     });
@@ -319,7 +409,11 @@ describe('TaskCommentsService', () => {
     it('allows an EMPLOYEE who belongs to the project', async () => {
       const { service, prisma } = setup(Role.EMPLOYEE);
 
-      await service.findByTask(USER, { organizationId: ORG, taskId: TASK, first: 10 });
+      await service.findByTask(USER, {
+        organizationId: ORG,
+        taskId: TASK,
+        first: 10,
+      });
 
       expect(prisma.taskComment.findMany).toHaveBeenCalled();
     });
@@ -327,13 +421,16 @@ describe('TaskCommentsService', () => {
     it('allows listing comments for a MANAGER without project membership', async () => {
       const { service, prisma } = setup(Role.MANAGER);
 
-      await service.findByTask(USER, { organizationId: ORG, taskId: TASK, first: 10 });
+      await service.findByTask(USER, {
+        organizationId: ORG,
+        taskId: TASK,
+        first: 10,
+      });
 
       expect(prisma.taskComment.findMany).toHaveBeenCalled();
       expect(prisma.projectMember.findUnique).not.toHaveBeenCalled();
     });
   });
-
 
   describe('pagination edge cases', () => {
     const timestamp = new Date('2026-01-01T00:00:00.000Z');
@@ -489,7 +586,6 @@ describe('TaskCommentsService', () => {
         }),
       );
     });
-
   });
 
   describe('update', () => {
@@ -758,5 +854,4 @@ describe('TaskCommentsService', () => {
       expect(prisma.taskComment.delete).not.toHaveBeenCalled();
     });
   });
-
 });

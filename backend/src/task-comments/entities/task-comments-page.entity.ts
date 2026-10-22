@@ -6,7 +6,7 @@ export class TaskCommentsPage {
   @Field(() => [TaskComment])
   items!: TaskComment[];
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   nextCursor!: string | null;
 
   @Field()

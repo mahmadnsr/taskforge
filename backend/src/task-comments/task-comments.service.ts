@@ -4,8 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { NotificationType, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { CreateTaskCommentInput } from './dto/create-task-comment.input.js';
 import { UpdateTaskCommentInput } from './dto/update-task-comment.input.js';
 import { TaskCommentsPaginationInput } from './dto/task-comments-pagination.input.js';
@@ -16,7 +17,10 @@ import {
 
 @Injectable()
 export class TaskCommentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   private async getMembership(userId: string, organizationId: string) {
     const membership = await this.prisma.organizationMember.findUnique({
@@ -46,6 +50,8 @@ export class TaskCommentsService {
         id: true,
         organizationId: true,
         projectId: true,
+        title: true,
+        assigneeId: true,
         project: {
           select: { status: true },
         },
@@ -95,34 +101,48 @@ export class TaskCommentsService {
       await this.assertProjectMembership(userId, task.projectId);
     }
 
-    return this.prisma.taskComment.create({
-      data: {
-        organizationId,
-        taskId,
-        authorId: userId,
-        content,
-      },
-      include: {
-        author: {
-          select: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                createdAt: true,
+    return this.prisma.$transaction(async (tx) => {
+      const comment = await tx.taskComment.create({
+        data: {
+          organizationId,
+          taskId,
+          authorId: userId,
+          content,
+        },
+        include: {
+          author: {
+            select: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  createdAt: true,
+                },
               },
             },
           },
         },
-      },
-    }).then((comment) => ({
-      ...comment,
-      author: comment.author.user,
-    }));
+      });
+
+      if (task.assigneeId && task.assigneeId !== userId) {
+        await this.notificationsService.createForRecipient(tx, {
+          organizationId,
+          recipientId: task.assigneeId,
+          taskId,
+          type: NotificationType.TASK_COMMENTED,
+          message: `New comment on task: ${task.title}`,
+        });
+      }
+
+      return {
+        ...comment,
+        author: comment.author.user,
+      };
+    });
   }
 
   async findByTask(userId: string, input: TaskCommentsPaginationInput) {
-    const { organizationId, taskId, first = 10, after } = input;
+    const { organizationId, taskId, first, after } = input;
 
     const membership = await this.getMembership(userId, organizationId);
     const task = await this.getTask(organizationId, taskId);

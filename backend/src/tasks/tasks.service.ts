@@ -4,8 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Role, TaskPriority, TaskStatus } from '@prisma/client';
+import { NotificationType, Role, TaskPriority, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { AssignTaskInput } from './dto/assign-task.input.js';
 import { ChangeTaskStatusInput } from './dto/change-task-status.input.js';
 import { CreateTaskInput } from './dto/create-task.input.js';
@@ -19,7 +20,10 @@ import { PaginatedTasks } from './entities/paginated-tasks.entity.js';
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   private async getMembership(userId: string, organizationId: string) {
     const membership = await this.prisma.organizationMember.findUnique({
@@ -233,9 +237,31 @@ export class TasksService {
       throw new BadRequestException('Provide at least one field to update');
     }
 
-    return this.prisma.task.update({
-      where: { id: taskId },
-      data,
+    const assigneeChanged =
+      input.assigneeId !== undefined &&
+      input.assigneeId !== task.assigneeId;
+
+    return this.prisma.$transaction(async (tx) => {
+      const updatedTask = await tx.task.update({
+        where: { id: taskId },
+        data,
+      });
+
+      if (
+        assigneeChanged &&
+        input.assigneeId &&
+        input.assigneeId !== userId
+      ) {
+        await this.notificationsService.createForRecipient(tx, {
+          organizationId,
+          recipientId: input.assigneeId,
+          taskId,
+          type: NotificationType.TASK_ASSIGNED,
+          message: `You have been assigned to task: ${updatedTask.title}`,
+        });
+      }
+
+      return updatedTask;
     });
   }
 
@@ -287,11 +313,32 @@ export class TasksService {
       }
     }
 
-    return this.prisma.task.update({
-      where: { id: taskId },
-      data: {
-        assigneeId: assigneeId ?? null,
-      },
+    const normalizedAssigneeId = assigneeId ?? null;
+    const assigneeChanged = normalizedAssigneeId !== task.assigneeId;
+
+    return this.prisma.$transaction(async (tx) => {
+      const updatedTask = await tx.task.update({
+        where: { id: taskId },
+        data: {
+          assigneeId: normalizedAssigneeId,
+        },
+      });
+
+      if (
+        assigneeChanged &&
+        normalizedAssigneeId &&
+        normalizedAssigneeId !== userId
+      ) {
+        await this.notificationsService.createForRecipient(tx, {
+          organizationId,
+          recipientId: normalizedAssigneeId,
+          taskId,
+          type: NotificationType.TASK_ASSIGNED,
+          message: `You have been assigned to task: ${updatedTask.title}`,
+        });
+      }
+
+      return updatedTask;
     });
   }
 
@@ -345,9 +392,23 @@ export class TasksService {
       throw new BadRequestException('Invalid task status transition');
     }
 
-    return this.prisma.task.update({
-      where: { id: taskId },
-      data: { status },
+    return this.prisma.$transaction(async (tx) => {
+      const updatedTask = await tx.task.update({
+        where: { id: taskId },
+        data: { status },
+      });
+
+      if (task.createdById !== userId) {
+        await this.notificationsService.createForRecipient(tx, {
+          organizationId,
+          recipientId: task.createdById,
+          taskId,
+          type: NotificationType.TASK_STATUS_CHANGED,
+          message: `Task "${updatedTask.title}" status changed to ${status}`,
+        });
+      }
+
+      return updatedTask;
     });
   }
 

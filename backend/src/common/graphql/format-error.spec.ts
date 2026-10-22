@@ -48,6 +48,9 @@ const STATUS_OF_PUBLIC_MESSAGE: Record<string, number> = {
   'You can only modify your own comments': 403,
   'Comment content cannot be empty': 400,
   'Invalid comment cursor': 400,
+  'Invalid notification cursor': 400,
+  'Notification not found': 404,
+  'Notification recipient must belong to the organization': 403,
   'You must be a project member to access task comments': 403,
 
   'Email already registered': 409,
@@ -692,26 +695,26 @@ describe('trusted validation metadata (production)', () => {
   });
 
   it('uses the fixed fallback for array indexes under an approved field', () => {
-  const error = failWith(
-    verr('userId', undefined, [verr('0', { isUuid: 'SECRET' })]),
-  );
+    const error = failWith(
+      verr('userId', undefined, [verr('0', { isUuid: 'SECRET' })]),
+    );
 
-  expect(validationErrorsOf(error)).toEqual([FALLBACK]);
-  expect(JSON.stringify(prod(error))).not.toContain('SECRET');
-});
+    expect(validationErrorsOf(error)).toEqual([FALLBACK]);
+    expect(JSON.stringify(prod(error))).not.toContain('SECRET');
+  });
 
   it('uses the fixed fallback for nested paths without leaking validator messages', () => {
-  const error = failWith(
-    verr('userId', undefined, [
-      verr('0', undefined, [
-        verr('email', { isEmail: 'SECRET submitted value' }),
+    const error = failWith(
+      verr('userId', undefined, [
+        verr('0', undefined, [
+          verr('email', { isEmail: 'SECRET submitted value' }),
+        ]),
       ]),
-    ]),
-  );
+    );
 
-  expect(validationErrorsOf(error)).toEqual([FALLBACK]);
-  expect(JSON.stringify(prod(error))).not.toContain('SECRET');
-});
+    expect(validationErrorsOf(error)).toEqual([FALLBACK]);
+    expect(JSON.stringify(prod(error))).not.toContain('SECRET');
+  });
 
   it('does not exceed MAX_FAILURES when the depth boundary is reached', () => {
     const manyConstraints = Object.fromEntries(
@@ -722,9 +725,7 @@ describe('trusted validation metadata (production)', () => {
       verr('0', undefined, [
         verr('0', undefined, [
           verr('0', undefined, [
-            verr('0', manyConstraints, [
-              verr('0', { isString: 'SECRET' }),
-            ]),
+            verr('0', manyConstraints, [verr('0', { isString: 'SECRET' })]),
           ]),
         ]),
       ]),

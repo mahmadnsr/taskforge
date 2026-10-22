@@ -80,6 +80,10 @@ export const PUBLIC_ERROR_MESSAGES: ReadonlySet<string> = new Set([
   'Cannot modify comments in an archived project',
   'You can only modify your own comments',
   'Invalid comment cursor',
+  // notifications.service.ts and notifications-cursor.ts
+  'Notification recipient must belong to the organization',
+  'Notification not found',
+  'Invalid notification cursor',
 ]);
 
 /** HttpException statuses that may reach clients, with their public code. */

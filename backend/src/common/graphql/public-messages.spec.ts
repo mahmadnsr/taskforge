@@ -160,7 +160,7 @@ describe('DTO fields and rules vs. the validation feedback allowlists', () => {
     IsInt: 'isInt',
     Min: 'min',
     Max: 'max',
-  IsOptional: null, // reports no constraint
+    IsOptional: null, // reports no constraint
   };
   const texts = sourceFiles().map((path) => ({
     file: relative(SRC, path),
@@ -210,7 +210,7 @@ describe('DTO fields and rules vs. the validation feedback allowlists', () => {
     const props = new Set<string>();
     for (const { text } of dtoTexts) {
       // class members declared at indent 2: `name!: string;` / `name?: string;`
-      for (const m of text.matchAll(/^ {2}([A-Za-z_]\w*)[!?]?\s*:/gm)) {
+      for (const m of text.matchAll(/^ {2}([a-z_]\w*)[!?]?\s*(?::|=)/gm)) {
         props.add(m[1]);
       }
     }

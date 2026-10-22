@@ -17,6 +17,7 @@ import { validateEnv } from './config/env.validation.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { formatGraphQLError } from './common/graphql/format-error.js';
 import { TasksModule } from './tasks/tasks.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -57,6 +58,7 @@ import { TaskCommentsModule } from './task-comments/task-comments.module.js';
     ProjectsModule,
     AuthModule,
     TasksModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

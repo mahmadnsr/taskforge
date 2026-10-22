@@ -49,6 +49,12 @@ enum TaskPriority {
   URGENT
 }
 
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_STATUS_CHANGED
+  TASK_COMMENTED
+}
+
 // ============================================================
 // USER
 // ============================================================
@@ -65,6 +71,7 @@ model User {
   refreshTokens   RefreshToken[]
   sentInvitations OrganizationInvitation[] @relation("InvitationsSent")
   createdProjects Project[]                @relation("ProjectsCreated")
+  notifications   Notification[]           @relation("NotificationRecipient")
 }
 
 // ============================================================
@@ -78,9 +85,10 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members     OrganizationMember[]
-  invitations OrganizationInvitation[]
-  projects    Project[]
+  members       OrganizationMember[]
+  invitations   OrganizationInvitation[]
+  projects      Project[]
+  notifications Notification[]
 }
 
 // ============================================================
@@ -210,10 +218,11 @@ model Task {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  comments  TaskComment[]
-  project   Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
-  createdBy OrganizationMember @relation("TasksCreated", fields: [createdById, organizationId], references: [userId, organizationId], onDelete: Restrict)
-  assignee  ProjectMember?     @relation("TasksAssigned", fields: [projectId, assigneeId], references: [projectId, userId], onDelete: Restrict)
+  comments      TaskComment[]
+  notifications Notification[]
+  project       Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  createdBy     OrganizationMember @relation("TasksCreated", fields: [createdById, organizationId], references: [userId, organizationId], onDelete: Restrict)
+  assignee      ProjectMember?     @relation("TasksAssigned", fields: [projectId, assigneeId], references: [projectId, userId], onDelete: Restrict)
 
   @@unique([id, organizationId])
   @@index([projectId, status])
@@ -242,4 +251,27 @@ model TaskComment {
 
   @@index([taskId, createdAt])
   @@index([authorId, organizationId])
+}
+
+// ============================================================
+// NOTIFICATION
+// ============================================================
+
+model Notification {
+  id             String           @id @default(uuid())
+  organizationId String
+  recipientId    String
+  taskId         String
+  type           NotificationType
+  message        String
+  readAt         DateTime?
+  createdAt      DateTime         @default(now())
+
+  recipient    User         @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  task         Task         @relation(fields: [taskId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@index([recipientId, createdAt, id])
+  @@index([recipientId, readAt])
+  @@index([organizationId])
 }
