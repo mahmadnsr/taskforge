@@ -313,11 +313,87 @@ describe('TaskReminderSchedulerService', () => {
     expect(prisma.task.findMany).toHaveBeenCalled();
   });
 
+  it('logs stale processing claims without resetting or re-enqueueing them', async () => {
+    const now = new Date('2026-10-26T12:00:00.000Z');
+    const processingAt = new Date('2026-10-26T11:40:00.000Z');
+    const warningSpy = vi
+      .spyOn(service['logger'], 'warn')
+      .mockImplementation(() => {});
+
+    // First query: stale enqueue recovery finds nothing.
+    // Second query: stale processing detection finds a candidate.
+    // Third query: no more candidates.
+    prisma.taskReminder.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 'reminder-stale',
+          emailProcessingAt: processingAt,
+          lastError: 'Delivery outcome uncertain: SMTP connection failed',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    await service.scan(now);
+
+    expect(prisma.taskReminder.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'PROCESSING',
+          emailProcessingAt: {
+            not: null,
+            lt: new Date('2026-10-26T11:45:00.000Z'),
+          },
+          emailSentAt: null,
+        }),
+        orderBy: { id: 'asc' },
+        take: 250,
+      }),
+    );
+
+    expect(warningSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Stale reminder processing claim needs reconciliation',
+      ),
+    );
+    expect(warningSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Automatic resend suppressed.'),
+    );
+    expect(prisma.taskReminder.updateMany).not.toHaveBeenCalled();
+    expect(queues.enqueueEmail).not.toHaveBeenCalled();
+
+    warningSpy.mockRestore();
+  });
+
+  it('continues normal reminder scanning if stale processing detection fails', async () => {
+    const errorSpy = vi
+      .spyOn(service['logger'], 'error')
+      .mockImplementation(() => {});
+
+    // Stale enqueue recovery succeeds with no candidates; the processing
+    // detection query then fails and should be handled without aborting scan.
+    prisma.taskReminder.findMany
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('Database unavailable'));
+
+    await expect(
+      service.scan(new Date('2026-10-26T12:00:00.000Z')),
+    ).resolves.toBeUndefined();
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Failed to detect stale reminder processing claims',
+      expect.any(String),
+    );
+    expect(prisma.task.findMany).toHaveBeenCalledTimes(2);
+
+    errorSpy.mockRestore();
+  });
+
   it('clears the periodic timer when the module is destroyed', async () => {
     const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
 
     service.onModuleInit();
-    await service.onModuleDestroy();
+    service.onModuleDestroy();
 
     expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
   });

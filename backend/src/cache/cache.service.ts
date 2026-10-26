@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Redis } from 'ioredis';
+import { createRedisConfig } from '../config/redis.config.js';
 
 @Injectable()
 export class CacheService implements OnModuleInit, OnModuleDestroy {
@@ -14,8 +15,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
 
   constructor(config: ConfigService) {
     this.redis = new Redis({
-      host: config.get<string>('REDIS_HOST', '127.0.0.1'),
-      port: Number(config.get<string>('REDIS_PORT', '6379')),
+      ...createRedisConfig(config),
       lazyConnect: true,
       connectTimeout: 1000,
       commandTimeout: 1000,
@@ -47,6 +47,18 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy(): Promise<void> {
     this.redis.disconnect();
+  }
+
+  async pingRedis(): Promise<boolean> {
+    try {
+      if (this.redis.status !== 'ready') {
+        return false;
+      }
+
+      return (await this.redis.ping()) === 'PONG';
+    } catch {
+      return false;
+    }
   }
 
   private versionKey(organizationId: string): string {

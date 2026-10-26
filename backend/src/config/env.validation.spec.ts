@@ -92,6 +92,46 @@ describe('validateEnv', () => {
     ).toThrow(/PORT must be an integer between 1 and 65535/);
   });
 
+  it.each(['0', '-1', '65536', '1.5', '', 'abc'])(
+    'should reject an invalid Redis port: %s',
+    (port) => {
+      expect(() =>
+        validateEnv({ ...validConfig, REDIS_PORT: port }),
+      ).toThrow(/REDIS_PORT must be an integer between 1 and 65535/);
+    },
+  );
+
+  it('should accept a valid Redis port', () => {
+    const config = { ...validConfig, REDIS_PORT: '6380' };
+    expect(validateEnv(config)).toEqual(config);
+  });
+
+  it.each(['REDIS_HOST', 'REDIS_USERNAME', 'REDIS_PASSWORD'] as const)(
+    'should reject a blank %s when provided',
+    (key) => {
+      expect(() =>
+        validateEnv({ ...validConfig, [key]: '  ' }),
+      ).toThrow(new RegExp(`${key} must be a non-empty string`));
+    },
+  );
+
+  it.each(['yes', '1', '', 'TRUE'])(
+    'should reject invalid REDIS_TLS value: %s',
+    (value) => {
+      expect(() =>
+        validateEnv({ ...validConfig, REDIS_TLS: value }),
+      ).toThrow(/REDIS_TLS must be either true or false/);
+    },
+  );
+
+  it.each(['true', 'false'])(
+    'should accept REDIS_TLS value: %s',
+    (value) => {
+      const config = { ...validConfig, REDIS_TLS: value };
+      expect(validateEnv(config)).toEqual(config);
+    },
+  );
+
   it('should reject an unsupported NODE_ENV', () => {
     expect(() =>
       validateEnv({
@@ -125,5 +165,34 @@ describe('validateEnv', () => {
 
   it('should allow CORS_ORIGINS to be omitted', () => {
     expect(validateEnv(validConfig)).toEqual(validConfig);
+  });
+
+  it('should reject missing CORS_ORIGINS in production', () => {
+    expect(() =>
+      validateEnv({
+        ...validConfig,
+        NODE_ENV: 'production',
+      }),
+    ).toThrow(/CORS_ORIGINS is required in production/);
+  });
+
+  it('should reject empty CORS_ORIGINS in production', () => {
+    expect(() =>
+      validateEnv({
+        ...validConfig,
+        NODE_ENV: 'production',
+        CORS_ORIGINS: '  ',
+      }),
+    ).toThrow(/CORS_ORIGINS is required in production/);
+  });
+
+  it('should accept configured CORS_ORIGINS in production', () => {
+    const config = {
+      ...validConfig,
+      NODE_ENV: 'production',
+      CORS_ORIGINS: 'https://app.example.com',
+    };
+
+    expect(validateEnv(config)).toEqual(config);
   });
 });

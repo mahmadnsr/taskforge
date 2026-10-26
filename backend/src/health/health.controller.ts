@@ -1,0 +1,36 @@
+import {
+  Controller,
+  Get,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { HealthService } from './health.service.js';
+import { WorkerHealthService } from './worker-health.service.js';
+
+@Controller('health')
+export class HealthController {
+  constructor(
+    private readonly health: HealthService,
+    private readonly workerHealth: WorkerHealthService,
+  ) {}
+
+  @Get('live')
+  getLiveness() {
+    return { status: 'ok' as const };
+  }
+
+  @Get('worker')
+  async getWorkerHealth() {
+    return this.workerHealth.checkWorker();
+  }
+
+  @Get('ready')
+  async getReadiness() {
+    const result = await this.health.checkReadiness();
+
+    if (result.status !== 'ok') {
+      throw new ServiceUnavailableException(result);
+    }
+
+    return result;
+  }
+}

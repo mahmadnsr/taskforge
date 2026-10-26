@@ -92,6 +92,53 @@ describe('OutboxDispatcherService', () => {
     });
   });
 
+  it('schedules a retry when queue publication succeeds but marking the outbox event published fails', async () => {
+    const { service, queuesService, prisma } = setup();
+
+    prisma.outboxEvent.updateMany
+      .mockRejectedValueOnce(new Error('Database temporarily unavailable'));
+
+    await service.dispatchBatch();
+
+    expect(queuesService.enqueueTaskEvent).toHaveBeenCalledWith(
+      EVENT.payload,
+    );
+
+    expect(prisma.outboxEvent.updateMany).toHaveBeenCalledTimes(2);
+
+    expect(prisma.outboxEvent.updateMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        id: EVENT.id,
+        lockedBy: expect.any(String),
+        publishedAt: null,
+      },
+      data: {
+        publishedAt: expect.any(Date),
+        lockedAt: null,
+        lockedBy: null,
+        lastError: null,
+      },
+    });
+
+    expect(prisma.outboxEvent.updateMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: {
+          id: EVENT.id,
+          lockedBy: expect.any(String),
+          publishedAt: null,
+        },
+        data: expect.objectContaining({
+          attempts: { increment: 1 },
+          nextAttemptAt: expect.any(Date),
+          lockedAt: null,
+          lockedBy: null,
+          lastError: 'Database temporarily unavailable',
+        }),
+      }),
+    );
+  });
+
   it('records a queue failure and schedules a retry', async () => {
     const { service, queuesService, prisma } = setup();
 

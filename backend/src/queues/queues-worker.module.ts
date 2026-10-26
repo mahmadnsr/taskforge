@@ -7,6 +7,7 @@ import { PrismaModule } from '../prisma/prisma.module.js';
 import { OutboxDispatcherService } from '../outbox/outbox-dispatcher.service.js';
 import { EmailModule } from '../email/email.module.js';
 import { TaskRemindersModule } from '../task-reminders/task-reminders.module.js';
+import { WorkerHeartbeatService } from '../worker-heartbeat/worker-heartbeat.service.js';
 
 @Module({
   imports: [
@@ -19,6 +20,6 @@ import { TaskRemindersModule } from '../task-reminders/task-reminders.module.js'
     EmailModule,
     TaskRemindersModule,
   ],
-  providers: [QueuesProcessor, OutboxDispatcherService],
+  providers: [QueuesProcessor, OutboxDispatcherService, WorkerHeartbeatService],
 })
 export class QueuesWorkerModule {}

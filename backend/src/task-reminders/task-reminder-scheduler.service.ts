@@ -21,6 +21,7 @@ export class TaskReminderSchedulerService
   private readonly logger = new Logger(TaskReminderSchedulerService.name);
   private readonly scanIntervalMs = 5 * 60 * 1000;
   private readonly enqueueClaimTimeoutMs = 10 * 60 * 1000;
+  private readonly processingClaimTimeoutMs = 15 * 60 * 1000;
   private readonly batchSize = 250;
 
   private timer?: NodeJS.Timeout;
@@ -65,6 +66,7 @@ export class TaskReminderSchedulerService
       // Recover claims left behind if the process crashed after claiming
       // a reminder but before finalizing its queued state in the database.
       await this.recoverStaleEnqueueClaims(now);
+      await this.detectStaleProcessingClaims(now);
 
       await this.scanWindow(
         now,
@@ -200,7 +202,67 @@ export class TaskReminderSchedulerService
     }
   }
 
-  private async scanWindow(
+    /**
+   * Detect reminders whose processing claim has become stale.
+   *
+   * A stale claim does not prove that SMTP delivery failed: the worker may
+   * have sent the email and crashed before persisting the SENT state.
+   * Therefore, log candidates without resetting their status or re-enqueueing.
+   */
+  private async detectStaleProcessingClaims(now: Date): Promise<void> {
+    const staleBefore = new Date(
+      now.getTime() - this.processingClaimTimeoutMs,
+    );
+    let lastId: string | undefined;
+
+    try {
+      while (true) {
+        const reminders = await this.prisma.taskReminder.findMany({
+          where: {
+            ...(lastId ? { id: { gt: lastId } } : {}),
+            status: TaskReminderStatus.PROCESSING,
+            emailProcessingAt: {
+              not: null,
+              lt: staleBefore,
+            },
+            emailSentAt: null,
+          },
+          select: {
+            id: true,
+            emailProcessingAt: true,
+            lastError: true,
+          },
+          orderBy: { id: 'asc' },
+          take: this.batchSize,
+        });
+
+        if (reminders.length === 0) break;
+
+        for (const reminder of reminders) {
+          const processingAt = reminder.emailProcessingAt;
+          if (!processingAt) continue;
+
+          this.logger.warn(
+            `Stale reminder processing claim needs reconciliation; ` +
+              `reminder=${reminder.id}, ` +
+              `processingAt=${processingAt.toISOString()}, ` +
+              `lastError=${reminder.lastError ?? 'none'}. ` +
+              `Automatic resend suppressed.`,
+          );
+        }
+
+        if (reminders.length < this.batchSize) break;
+        lastId = reminders[reminders.length - 1]!.id;
+      }
+    } catch (error) {
+      this.logger.error(
+        'Failed to detect stale reminder processing claims',
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+private async scanWindow(
     now: Date,
     type: TaskReminderType,
     offsetMs: number,

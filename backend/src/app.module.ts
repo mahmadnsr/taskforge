@@ -20,6 +20,7 @@ import { formatGraphQLError } from './common/graphql/format-error.js';
 import { TasksModule } from './tasks/tasks.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
+import { HealthModule } from './health/health.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -62,6 +63,7 @@ import { TaskCommentsModule } from './task-comments/task-comments.module.js';
     TasksModule,
     NotificationsModule,
     DashboardModule,
+    HealthModule,
     QueuesModule,
   ],
   controllers: [AppController],

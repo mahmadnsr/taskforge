@@ -608,6 +608,78 @@ describe('QueuesProcessor', () => {
     errorLog.mockRestore();
   });
 
+  it('suppresses automatic retry when the SENT update matches no reminder', async () => {
+    let claimAt: Date | undefined;
+
+    prisma.taskReminder.findUnique
+      .mockResolvedValueOnce({
+        id: 'reminder-1',
+        status: TaskReminderStatus.PENDING,
+        emailSentAt: null,
+      } as never)
+      .mockImplementationOnce(async () =>
+        createReminder({
+          status: TaskReminderStatus.PROCESSING,
+          emailProcessingAt: claimAt,
+        }),
+      );
+
+    // The claim succeeds, but the final SENT update matches no rows.
+    prisma.taskReminder.updateMany.mockImplementation(
+      async (args: {
+        data?: {
+          status?: TaskReminderStatus;
+          emailProcessingAt?: Date;
+        };
+      }) => {
+        if (args.data?.status === TaskReminderStatus.PROCESSING) {
+          claimAt = args.data.emailProcessingAt;
+          return { count: 1 };
+        }
+
+        if (args.data?.status === TaskReminderStatus.SENT) {
+          return { count: 0 };
+        }
+
+        return { count: 1 };
+      },
+    );
+
+    const errorLog = vi
+      .spyOn(processor['logger'], 'error')
+      .mockImplementation(() => {});
+
+    await expect(
+      processor.process({
+        id: 'email-reminder-zero-update',
+        name: 'send-email',
+        data: {
+          to: 'user@example.com',
+          subject: 'Task reminder',
+          text: 'Your task is due soon',
+          idempotencyKey: 'deadline-reminder-1',
+          reminderId: 'reminder-1',
+        },
+      } as Job),
+    ).resolves.toBeUndefined();
+
+    expect(emailService.send).toHaveBeenCalledTimes(1);
+
+    expect(prisma.taskReminder.updateMany).toHaveBeenCalledTimes(2);
+
+    expect(errorLog).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Email was accepted, but reminder success was not recorded.',
+      ),
+    );
+
+    expect(errorLog).toHaveBeenCalledWith(
+      expect.stringContaining('Automatic retry suppressed'),
+    );
+
+    errorLog.mockRestore();
+  });
+
   it('rejects unknown job types', async () => {
     await expect(
       processor.process({

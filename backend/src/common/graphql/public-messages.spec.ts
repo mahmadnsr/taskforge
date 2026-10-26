@@ -21,6 +21,7 @@ const KNOWN_CLASSES = [
   'ForbiddenException',
   'NotFoundException',
   'ConflictException',
+  'ServiceUnavailableException',
 ] as const;
 
 /** Nest's default message when an exception is created without arguments. */
@@ -30,6 +31,7 @@ const DEFAULT_MESSAGE: Record<string, string> = {
   ForbiddenException: 'Forbidden',
   NotFoundException: 'Not Found',
   ConflictException: 'Conflict',
+  ServiceUnavailableException: 'Service Unavailable',
 };
 
 function sourceFiles(): string[] {
@@ -74,6 +76,13 @@ function collectThrown(): Thrown[] {
           message: null,
           problem: `unexpected exception class ${className}`,
         });
+        continue;
+      }
+      if (
+        className === 'ServiceUnavailableException' &&
+        arg === 'result'
+      ) {
+        // Readiness response payload, not a client-facing exception message.
         continue;
       }
       if (arg === '') {

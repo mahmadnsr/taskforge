@@ -1,8 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { Queue } from 'bullmq';
 import {
-  Organization,
-  PrismaClient,
   Role,
   TaskPriority,
   TaskReminderStatus,

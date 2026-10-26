@@ -40,6 +40,13 @@ export function validateEnv(config: Record<string, unknown>) {
 
   const corsOrigins = config.CORS_ORIGINS;
 
+  if (
+    config.NODE_ENV === 'production' &&
+    (typeof corsOrigins !== 'string' || corsOrigins.trim() === '')
+  ) {
+    errors.push('CORS_ORIGINS is required in production');
+  }
+
   if (corsOrigins !== undefined) {
     if (typeof corsOrigins !== 'string') {
       errors.push('CORS_ORIGINS must be a comma-separated list of HTTP/HTTPS origins');
@@ -69,6 +76,37 @@ export function validateEnv(config: Record<string, unknown>) {
         errors.push('CORS_ORIGINS must contain only valid HTTP/HTTPS origins without paths or wildcards');
       }
     }
+  }
+
+  const redisPort = config.REDIS_PORT;
+
+  if (
+    redisPort !== undefined &&
+    (
+      (typeof redisPort !== 'string' && typeof redisPort !== 'number') ||
+      String(redisPort).trim() === '' ||
+      !Number.isInteger(Number(redisPort)) ||
+      Number(redisPort) < 1 ||
+      Number(redisPort) > 65535
+    )
+  ) {
+    errors.push('REDIS_PORT must be an integer between 1 and 65535');
+  }
+
+  for (const key of ['REDIS_HOST', 'REDIS_USERNAME', 'REDIS_PASSWORD'] as const) {
+    const value = config[key];
+
+    if (value !== undefined && (typeof value !== 'string' || value.trim() === '')) {
+      errors.push(`${key} must be a non-empty string when provided`);
+    }
+  }
+
+  if (
+    config.REDIS_TLS !== undefined &&
+    config.REDIS_TLS !== 'true' &&
+    config.REDIS_TLS !== 'false'
+  ) {
+    errors.push('REDIS_TLS must be either true or false');
   }
 
   const nodeEnv = config.NODE_ENV;

@@ -1,0 +1,13 @@
+import { Module } from '@nestjs/common';
+import { CacheModule } from '../cache/cache.module.js';
+import { PrismaModule } from '../prisma/prisma.module.js';
+import { HealthController } from './health.controller.js';
+import { HealthService } from './health.service.js';
+import { WorkerHealthService } from './worker-health.service.js';
+
+@Module({
+  imports: [CacheModule, PrismaModule],
+  controllers: [HealthController],
+  providers: [HealthService, WorkerHealthService],
+})
+export class HealthModule {}
