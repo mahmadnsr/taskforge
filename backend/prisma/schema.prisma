@@ -2,7 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Learn more: https://pris.ly/d/prisma-schema
+// Learn more about Prisma Accelerate: https://pris.ly/cli/accelerate-init
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 // ============================================================
@@ -64,6 +64,7 @@ enum TaskReminderType {
 enum TaskReminderStatus {
   PENDING
   QUEUED
+  PROCESSING
   SENT
   SKIPPED
 }
@@ -278,14 +279,16 @@ model Notification {
   organizationId String
   recipientId    String
   taskId         String
+  taskReminderId String?          @unique
   type           NotificationType
   message        String
   readAt         DateTime?
   createdAt      DateTime         @default(now())
 
-  recipient    User         @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  task         Task         @relation(fields: [taskId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  recipient    User          @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  task         Task          @relation(fields: [taskId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  taskReminder TaskReminder? @relation(fields: [taskReminderId], references: [id], onDelete: SetNull)
 
   @@index([recipientId, createdAt, id])
   @@index([recipientId, readAt])
@@ -312,30 +315,32 @@ model OutboxEvent {
   @@index([lockedAt])
 }
 
-
 // ============================================================
 // TASK DEADLINE REMINDERS
 // ============================================================
 
 model TaskReminder {
-  id             String             @id @default(uuid())
-  taskId         String
-  organizationId String
-  recipientId    String
-  type           TaskReminderType
-  status         TaskReminderStatus @default(PENDING)
-  dueDate          DateTime
-  notificationAt   DateTime?
-  emailQueuedAt    DateTime?
-  emailSentAt      DateTime?
-  lastError        String?
-  sentAt           DateTime?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  id                    String             @id @default(uuid())
+  taskId                String
+  organizationId        String
+  recipientId           String
+  type                  TaskReminderType
+  status                TaskReminderStatus @default(PENDING)
+  dueDate               DateTime
+  notificationAt        DateTime?
+  emailQueuedAt         DateTime?
+  emailProcessingAt     DateTime?
+  emailEnqueueClaimedAt DateTime?
+  emailSentAt           DateTime?
+  lastError             String?
+  sentAt                DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
 
-  task         Task         @relation(fields: [taskId, organizationId], references: [id, organizationId], onDelete: Cascade)
-  recipient    User         @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  task         Task          @relation(fields: [taskId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  recipient    User          @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  notification Notification?
 
   @@unique([taskId, dueDate, recipientId, type])
   @@index([status, dueDate])

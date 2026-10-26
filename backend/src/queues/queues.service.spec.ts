@@ -34,8 +34,11 @@ describe('QueuesService', () => {
   });
 
   it('enqueues task events with retries and a deterministic job ID', async () => {
-    const add = vi.fn().mockResolvedValue({ id: 'task-event-created-task-1' });
+    const add = vi.fn().mockResolvedValue({
+      id: 'task-event-created-task-1',
+    });
     const service = new QueuesService({ add } as never);
+
     const payload = {
       eventId: 'created-task-1',
       organizationId: 'org-1',
@@ -118,5 +121,72 @@ describe('QueuesService', () => {
     ).rejects.toThrow('Email idempotencyKey must not be empty');
 
     expect(add).not.toHaveBeenCalled();
+  });
+
+  it('finds an existing email job by deterministic ID', async () => {
+    const job = { id: 'email-deadline-reminder-1' };
+    const getJob = vi.fn().mockResolvedValue(job);
+    const service = new QueuesService({ getJob } as never);
+
+    await expect(
+      service.findEmailJob('deadline-reminder-1'),
+    ).resolves.toBe(job);
+
+    expect(getJob).toHaveBeenCalledWith('email-deadline-reminder-1');
+  });
+
+  it('returns undefined when the email job does not exist', async () => {
+    const getJob = vi.fn().mockResolvedValue(undefined);
+    const service = new QueuesService({ getJob } as never);
+
+    await expect(
+      service.findEmailJob('deadline-reminder-1'),
+    ).resolves.toBeUndefined();
+
+    expect(getJob).toHaveBeenCalledWith('email-deadline-reminder-1');
+  });
+
+  it('rejects an empty email idempotency key when looking up a job', async () => {
+    const getJob = vi.fn();
+    const service = new QueuesService({ getJob } as never);
+
+    await expect(service.findEmailJob('  ')).rejects.toThrow(
+      'Email idempotencyKey must not be empty',
+    );
+
+    expect(getJob).not.toHaveBeenCalled();
+  });
+
+  it('returns the state of an existing email job', async () => {
+    const getState = vi.fn().mockResolvedValue('waiting');
+    const getJob = vi.fn().mockResolvedValue({ getState });
+    const service = new QueuesService({ getJob } as never);
+
+    await expect(
+      service.getEmailJobState('deadline-reminder-1'),
+    ).resolves.toBe('waiting');
+
+    expect(getJob).toHaveBeenCalledWith('email-deadline-reminder-1');
+    expect(getState).toHaveBeenCalledOnce();
+  });
+
+  it('returns null when the email job does not exist', async () => {
+    const getJob = vi.fn().mockResolvedValue(undefined);
+    const service = new QueuesService({ getJob } as never);
+
+    await expect(
+      service.getEmailJobState('deadline-reminder-1'),
+    ).resolves.toBeNull();
+  });
+
+  it('rejects an empty email idempotency key when reading job state', async () => {
+    const getJob = vi.fn();
+    const service = new QueuesService({ getJob } as never);
+
+    await expect(service.getEmailJobState('  ')).rejects.toThrow(
+      'Email idempotencyKey must not be empty',
+    );
+
+    expect(getJob).not.toHaveBeenCalled();
   });
 });

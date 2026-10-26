@@ -80,4 +80,26 @@ export class QueuesService {
       removeOnFail: 1000,
     });
   }
+
+  async findEmailJob(
+    idempotencyKey: string,
+  ): Promise<Job<EmailJobPayload> | undefined> {
+    if (!idempotencyKey.trim()) {
+      throw new Error('Email idempotencyKey must not be empty');
+    }
+
+    return this.queue.getJob(`email-${idempotencyKey}`);
+  }
+
+  async getEmailJobState(
+    idempotencyKey: string,
+  ): Promise<string | null> {
+    const job = await this.findEmailJob(idempotencyKey);
+
+    if (!job) {
+      return null;
+    }
+
+    return job.getState();
+  }
 }

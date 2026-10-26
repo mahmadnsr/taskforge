@@ -7,6 +7,7 @@ import {
 import { ProjectStatus, Role } from '@prisma/client';
 import { ProjectsService } from './projects.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import type { CacheService } from '../cache/cache.service.js';
 
 const ORG = 'org-1';
 const USER = 'user-1';
@@ -28,8 +29,17 @@ function setup(role: Role | null) {
         .mockImplementation(async ({ data }) => ({ id: PID, ...data })),
     },
   };
-  const service = new ProjectsService(prisma as unknown as PrismaService);
-  return { prisma, service };
+  const cache = {
+    getOrganizationVersion: vi.fn().mockResolvedValue(0),
+    incrementOrganizationVersion: vi.fn().mockResolvedValue(undefined),
+    getJson: vi.fn().mockResolvedValue(null),
+    setJson: vi.fn().mockResolvedValue(undefined),
+  };
+  const service = new ProjectsService(
+    prisma as unknown as PrismaService,
+    cache as unknown as CacheService,
+  );
+  return { prisma, cache, service };
 }
 
 const active = { id: PID, organizationId: ORG, status: ProjectStatus.ACTIVE };
@@ -94,6 +104,91 @@ describe('ProjectsService', () => {
       expect(prisma.project.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { organizationId: ORG } }),
       );
+    });
+  });
+
+  describe('Redis project-list caching', () => {
+    it('returns cached projects without querying the database', async () => {
+      const { service, prisma, cache } = setup(Role.EMPLOYEE);
+      const cachedProjects = [{ ...active, name: 'Cached project' }];
+      cache.getJson.mockResolvedValue(cachedProjects);
+
+      await expect(service.list(USER, ORG)).resolves.toEqual(cachedProjects);
+
+      expect(cache.getJson).toHaveBeenCalledWith(
+        `taskforge:projects:v1:org:${ORG}:version:0:archived:false`,
+      );
+      expect(prisma.project.findMany).not.toHaveBeenCalled();
+    });
+
+    it('queries the database on a cache miss and caches the result', async () => {
+      const { service, prisma, cache } = setup(Role.ADMIN);
+      prisma.project.findMany.mockResolvedValue([active] as never);
+
+      await expect(service.list(USER, ORG)).resolves.toEqual([active]);
+
+      expect(prisma.project.findMany).toHaveBeenCalledOnce();
+      expect(cache.setJson).toHaveBeenCalledWith(
+        `taskforge:projects:v1:org:${ORG}:version:0:archived:false`,
+        [active],
+        30,
+      );
+    });
+
+    it('uses a distinct cache key when archived projects are included', async () => {
+      const { service, cache } = setup(Role.ADMIN);
+
+      await service.list(USER, ORG, true);
+
+      expect(cache.getJson).toHaveBeenCalledWith(
+        `taskforge:projects:v1:org:${ORG}:version:0:archived:true`,
+      );
+    });
+
+    it('falls back to the database when Redis version lookup is unavailable', async () => {
+      const { service, prisma, cache } = setup(Role.ADMIN);
+      cache.getOrganizationVersion.mockResolvedValue(null);
+      prisma.project.findMany.mockResolvedValue([active] as never);
+
+      await expect(service.list(USER, ORG)).resolves.toEqual([active]);
+
+      expect(prisma.project.findMany).toHaveBeenCalledOnce();
+      expect(cache.getJson).not.toHaveBeenCalled();
+      expect(cache.setJson).not.toHaveBeenCalled();
+    });
+
+    it('checks organization membership before accessing the cache', async () => {
+      const { service, cache } = setup(null);
+
+      await expect(service.list(USER, ORG)).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      expect(cache.getOrganizationVersion).not.toHaveBeenCalled();
+      expect(cache.getJson).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('cache invalidation', () => {
+    it('invalidates the organization cache after project creation', async () => {
+      const { service, cache } = setup(Role.MANAGER);
+
+      await service.create(USER, { organizationId: ORG, name: 'Alpha' });
+
+      expect(cache.incrementOrganizationVersion).toHaveBeenCalledWith(ORG);
+    });
+
+    it('invalidates the organization cache after project update', async () => {
+      const { service, prisma, cache } = setup(Role.ADMIN);
+      prisma.project.findFirst.mockResolvedValue(active);
+
+      await service.update(USER, {
+        organizationId: ORG,
+        projectId: PID,
+        name: 'Renamed',
+      });
+
+      expect(cache.incrementOrganizationVersion).toHaveBeenCalledWith(ORG);
     });
   });
 
@@ -209,6 +304,15 @@ describe('ProjectsService', () => {
         where: { id_organizationId: { id: PID, organizationId: ORG } },
         data: { status: ProjectStatus.ARCHIVED },
       });
+    });
+
+    it('invalidates the organization cache after archiving a project', async () => {
+      const { service, prisma, cache } = setup(Role.ADMIN);
+      prisma.project.findFirst.mockResolvedValue(active);
+
+      await service.archive(USER, ORG, PID);
+
+      expect(cache.incrementOrganizationVersion).toHaveBeenCalledWith(ORG);
     });
 
     it('already archived is idempotent, no second update', async () => {

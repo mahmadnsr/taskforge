@@ -38,6 +38,39 @@ export function validateEnv(config: Record<string, unknown>) {
     errors.push('PORT must be an integer between 1 and 65535');
   }
 
+  const corsOrigins = config.CORS_ORIGINS;
+
+  if (corsOrigins !== undefined) {
+    if (typeof corsOrigins !== 'string') {
+      errors.push('CORS_ORIGINS must be a comma-separated list of HTTP/HTTPS origins');
+    } else {
+      const origins = corsOrigins.split(',').map((origin) => origin.trim());
+
+      if (
+        origins.some(
+          (origin) =>
+            origin === '' ||
+            origin === '*' ||
+            (() => {
+              try {
+                const url = new URL(origin);
+                return (
+                  !['http:', 'https:'].includes(url.protocol) ||
+                  url.origin !== origin ||
+                  url.username !== '' ||
+                  url.password !== ''
+                );
+              } catch {
+                return true;
+              }
+            })(),
+        )
+      ) {
+        errors.push('CORS_ORIGINS must contain only valid HTTP/HTTPS origins without paths or wildcards');
+      }
+    }
+  }
+
   const nodeEnv = config.NODE_ENV;
 
   if (

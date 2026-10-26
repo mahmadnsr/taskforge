@@ -100,4 +100,30 @@ describe('validateEnv', () => {
       }),
     ).toThrow(/NODE_ENV must be one of/);
   });
+
+  it.each([
+    'https://app.example.com',
+    'http://localhost:5173',
+    'https://app.example.com, https://admin.example.com',
+  ])('should accept valid CORS origins: %s', (origins) => {
+    const config = { ...validConfig, CORS_ORIGINS: origins };
+    expect(validateEnv(config)).toEqual(config);
+  });
+
+  it.each([
+    '*',
+    'not-a-url',
+    'https://example.com/path',
+    'https://example.com/',
+    'ftp://example.com',
+    'https://one.example.com,',
+  ])('should reject invalid CORS origins: %s', (origins) => {
+    expect(() =>
+      validateEnv({ ...validConfig, CORS_ORIGINS: origins }),
+    ).toThrow(/CORS_ORIGINS must contain only valid HTTP\/HTTPS origins/);
+  });
+
+  it('should allow CORS_ORIGINS to be omitted', () => {
+    expect(validateEnv(validConfig)).toEqual(validConfig);
+  });
 });
