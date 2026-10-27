@@ -26,7 +26,10 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.jwt.verifyAsync<{ sub?: unknown }>(token);
+      const payload = await this.jwt.verifyAsync<{ sub?: unknown }>(
+        token,
+        { algorithms: ['HS256'] },
+      );
 
       if (typeof payload?.sub !== 'string' || payload.sub.trim().length === 0) {
         throw new UnauthorizedException('Invalid or expired access token');

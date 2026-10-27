@@ -1,6 +1,6 @@
 import { Field, ID, InputType } from '@nestjs/graphql';
 import { Role } from '@prisma/client';
-import { IsEmail, IsEnum, IsUUID } from 'class-validator';
+import { IsEmail, IsEnum, IsUUID, MaxLength } from 'class-validator';
 
 @InputType()
 export class InviteMemberInput {
@@ -10,6 +10,7 @@ export class InviteMemberInput {
 
   @Field()
   @IsEmail()
+  @MaxLength(254)
   email!: string;
 
   @Field(() => Role)

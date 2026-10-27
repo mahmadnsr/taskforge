@@ -36,7 +36,9 @@ describe('JwtAuthGuard', () => {
     await expect(guard.canActivate(makeContext(req))).resolves.toBe(true);
 
     expect(req.user).toEqual({ id: 'u1' });
-    expect(verifyAsync).toHaveBeenCalledWith('valid-token');
+    expect(verifyAsync).toHaveBeenCalledWith('valid-token', {
+      algorithms: ['HS256'],
+    });
   });
 
   it('rejects when the authorization header is missing', async () => {

@@ -18,6 +18,8 @@ import {
   IsNotEmpty,
   IsString,
   IsUUID,
+  Length,
+  Matches,
   MaxLength,
   MinLength,
   ValidateBy,
@@ -36,7 +38,6 @@ import { LoginInput } from '../../auth/dto/login.input.js';
 import { CreateProjectInput } from '../../projects/dto/create-project.input.js';
 import { UpdateProjectInput } from '../../projects/dto/update-project.input.js';
 
-/** Status that each public message is thrown with in src/ (kept in sync by the tests below). */
 /**
  * Status that each public message is thrown with in src/
  * (kept in sync by the tests below).
@@ -260,7 +261,7 @@ describe('HttpException handling (production)', () => {
   });
 
   it('a message list that did not come from SafeValidationPipe returns only the fallback', () => {
-    // exact look-alikes of legitimate default messages, one carrying a secret
+    // Exact look-alikes of legitimate default messages, one carrying a secret.
     const out = prod(
       new BadRequestException([
         'email must be an email',
@@ -299,11 +300,7 @@ describe('errors that must be masked (production)', () => {
 
   it('plain Error with DB details', () => {
     const e = new Error('connect ECONNREFUSED db.internal:5432');
-    const { formatted, error } = fromError(
-      e.message,
-      'INTERNAL_SERVER_ERROR',
-      e,
-    );
+    const { formatted, error } = fromError(e.message, 'INTERNAL_SERVER_ERROR', e);
     expect(formatGraphQLError(formatted, error, true)).toEqual(MASKED);
   });
 
@@ -315,11 +312,7 @@ describe('errors that must be masked (production)', () => {
         meta: { target: ['email'] },
       },
     );
-    const { formatted, error } = fromError(
-      e.message,
-      'INTERNAL_SERVER_ERROR',
-      e,
-    );
+    const { formatted, error } = fromError(e.message, 'INTERNAL_SERVER_ERROR', e);
     expect(formatGraphQLError(formatted, error, true)).toEqual(MASKED);
   });
 
@@ -527,11 +520,7 @@ describe('development behaviour is unchanged', () => {
 
   it('unexpected errors keep their real message in development', () => {
     const e = new Error('connect ECONNREFUSED db.internal:5432');
-    const { formatted, error } = fromError(
-      e.message,
-      'INTERNAL_SERVER_ERROR',
-      e,
-    );
+    const { formatted, error } = fromError(e.message, 'INTERNAL_SERVER_ERROR', e);
     expect(formatGraphQLError(formatted, error, false).message).toBe(e.message);
   });
 });
@@ -555,6 +544,7 @@ function verr(
 const safeFactory = new SafeValidationPipe({
   whitelist: true,
 }).createExceptionFactory();
+
 /** An exception exactly as SafeValidationPipe throws it for these errors. */
 const failWith = (...errors: ValidationError[]) =>
   safeFactory(errors) as HttpException;
@@ -601,7 +591,7 @@ describe('trusted validation metadata (production)', () => {
   });
 
   it.each([
-    // look-alikes of legitimate default messages that contain sensitive data
+    // Look-alikes of legitimate default messages that contain sensitive data.
     ['name', 'name must be a string SECRET-token-123'],
     ['name', 'name must be a string; password=SECRET'],
     ['email', 'john.doe@example.com must be an email'],
@@ -625,7 +615,8 @@ describe('trusted validation metadata (production)', () => {
       const out = prod(failWith(verr(field, { [constraint]: message })));
       const list = (out.extensions as { validationErrors: string[] })
         .validationErrors;
-      // exactly one generated entry for the approved field, nothing else
+
+      // Exactly one generated entry for the approved field, nothing else.
       expect(list).toHaveLength(1);
       expect(list[0].startsWith(`${field} `)).toBe(true);
       expect(list[0]).toBe(
@@ -759,6 +750,7 @@ describe('trusted validation metadata (production)', () => {
       verr(f, Object.fromEntries(constraints.map((c) => [c, 'x']))),
     );
     expect(validationErrorsOf(failWith(...many))).toHaveLength(20);
+
     const withUnsafe = validationErrorsOf(
       failWith(verr('zzz', { isSecretRule: 'x' }), ...many),
     );
@@ -801,8 +793,11 @@ describe('trusted validation metadata (production)', () => {
         trusted,
       );
       const child = Object.create(trusted) as HttpException;
+
       expect(validationErrorsOf(copy)).toEqual([FALLBACK]);
-      // Object.create(trusted) is not an HttpException of its own: masked or fallback, never generated text
+
+      // Object.create(trusted) is not an HttpException of its own:
+      // masked or fallback, never generated text.
       expect(JSON.stringify(prod(child))).not.toContain(
         'name must be a string',
       );
@@ -813,6 +808,7 @@ describe('trusted validation metadata (production)', () => {
         @IsString({ message: 'name must be a string' }) name!: string;
         @IsEmail({}, { message: 'email must be an email' }) email!: string;
       }
+
       const pipe = new ValidationPipe({ whitelist: true });
       const error = await pipe
         .transform(
@@ -820,6 +816,7 @@ describe('trusted validation metadata (production)', () => {
           { type: 'body', metatype: Plain },
         )
         .catch((e: unknown) => e as HttpException);
+
       expect(validationErrorsOf(error as HttpException)).toEqual([FALLBACK]);
     });
 
@@ -828,12 +825,15 @@ describe('trusted validation metadata (production)', () => {
         whitelist: true,
         disableErrorMessages: true,
       });
+
       class Dto {
         @IsString() name!: string;
       }
+
       const error = (await pipe
         .transform({ name: 1 }, { type: 'body', metatype: Dto })
         .catch((e: unknown) => e)) as HttpException;
+
       expect(prod(error).message).toBe('Bad request');
       expect(prod(error).extensions).toEqual({ code: 'BAD_REQUEST' });
     });
@@ -845,14 +845,17 @@ describe('custom messages through the real SafeValidationPipe (production)', () 
     RED = 'RED',
     BLUE = 'BLUE',
   }
+
   const leak = (a: { value?: unknown }) => `${String(a.value)}`;
 
   /** Custom messages that look like defaults but contain the submitted value. */
   class LookAlikeInput {
     @IsString({ message: (a) => `name must be a string ${leak(a)}` })
     name!: string;
+
     @IsEmail({}, { message: (a) => `${leak(a)} must be an email` })
     email!: string;
+
     @MinLength(8, {
       message: (a) =>
         `password must be longer than or equal to 8 characters, got ${leak(a)}`,
@@ -884,6 +887,10 @@ describe('custom messages through the real SafeValidationPipe (production)', () 
     @MaxLength(3) organizationName!: string;
     @MinLength(8) password!: string;
     @IsEnum(Color) role!: Color;
+
+    // Added for the refresh-token validation constraints.
+    @Length(64, 64) token!: string;
+    @Matches(/^[a-f0-9]{64}$/) refreshToken!: string;
   }
 
   async function run(
@@ -900,6 +907,7 @@ describe('custom messages through the real SafeValidationPipe (production)', () 
       },
       (e: unknown) => e,
     );
+
     if (!(error instanceof HttpException)) throw error;
     return prod(error);
   }
@@ -910,6 +918,7 @@ describe('custom messages through the real SafeValidationPipe (production)', () 
       email: 'SECRET-email-value',
       password: 'SECRET',
     });
+
     expect(out.extensions).toEqual({
       code: 'BAD_REQUEST',
       validationErrors: [
@@ -918,9 +927,11 @@ describe('custom messages through the real SafeValidationPipe (production)', () 
         'password is too short',
       ],
     });
+
     const json = JSON.stringify(out);
-    for (const secret of ['12345', 'SECRET', 'got'])
+    for (const secret of ['12345', 'SECRET', 'got']) {
       expect(json).not.toContain(secret);
+    }
   });
 
   it('a field that is not approved becomes the fallback even with a perfect-looking message', async () => {
@@ -951,10 +962,16 @@ describe('custom messages through the real SafeValidationPipe (production)', () 
         organizationName: 'abc',
         password: 'long-enough',
         role: 'RED',
+
+        // Valid values ensure the unexpected property is the only failure.
+        token: 'a'.repeat(64),
+        refreshToken: 'a'.repeat(64),
+
         'SECRET-extra-key': 'SECRET-extra-value',
       },
       { whitelist: true, forbidNonWhitelisted: true },
     );
+
     expect(out.extensions).toEqual({
       code: 'BAD_REQUEST',
       validationErrors: [FALLBACK],
@@ -971,7 +988,12 @@ describe('custom messages through the real SafeValidationPipe (production)', () 
       organizationName: 'too long',
       password: 'abc',
       role: 'nope',
+
+      // Exercise the approved isLength and matches constraints.
+      token: 'short',
+      refreshToken: 'invalid-token',
     });
+
     expect(out.extensions).toEqual({
       code: 'BAD_REQUEST',
       validationErrors: [
@@ -982,6 +1004,8 @@ describe('custom messages through the real SafeValidationPipe (production)', () 
         'organizationName is too long',
         'password is too short',
         'role must be one of the allowed values',
+        'token has an invalid length',
+        'refreshToken has an invalid format',
       ],
     });
   });
@@ -999,7 +1023,10 @@ describe('custom messages through the real SafeValidationPipe (production)', () 
       'isInt',
       'min',
       'max',
+      'isLength',
+      'matches',
     ]);
+
     expect([...CONSTRAINT_MESSAGES.keys()].sort()).toEqual(
       [...exercised].sort(),
     );
@@ -1017,6 +1044,7 @@ describe('SafeValidationPipe keeps the default exception (development output)', 
     const theirs = new ValidationPipe({
       whitelist: true,
     }).createExceptionFactory()(errors) as HttpException;
+
     expect(ours.getStatus()).toBe(theirs.getStatus());
     expect(ours.getResponse()).toEqual(theirs.getResponse());
     expect(ours.message).toBe(theirs.message);
@@ -1027,6 +1055,7 @@ describe('SafeValidationPipe keeps the default exception (development output)', 
     const out = formatGraphQLError(formatted, error, false);
     const { stacktrace: _omitted, ...expectedExtensions } =
       formatted.extensions!;
+
     expect(out).toEqual({ ...formatted, extensions: expectedExtensions });
     expect(JSON.stringify(out)).toContain('Custom name message SECRET-dev');
   });
@@ -1041,6 +1070,7 @@ describe('production logging of suppressed errors', () => {
     'verbose',
     'fatal',
   ] as const;
+
   const spies = () =>
     Object.fromEntries(
       methods.map((m) => [
@@ -1074,13 +1104,17 @@ describe('production logging of suppressed errors', () => {
   ])('logs only status, category and count for %j', (exception, status) => {
     const log = spies();
     prod(exception);
+
     expect(log.warn).toHaveBeenCalledTimes(1);
     const lines = log.warn.mock.calls.map((c: unknown[]) => c[0] as string);
+
     expect(lines[0]).toMatch(SAFE_LINE);
     expect(lines[0]).toContain(`status=${status}`);
+
     for (const fragment of LEAK_FRAGMENTS) {
       expect(JSON.stringify(log.warn.mock.calls)).not.toContain(fragment);
     }
+
     for (const m of methods.filter((m) => m !== 'warn')) {
       expect(log[m]).not.toHaveBeenCalled();
     }
@@ -1088,12 +1122,15 @@ describe('production logging of suppressed errors', () => {
 
   it('does not log public messages, safe validation messages, masked errors or development errors', () => {
     const log = spies();
+
     prod(new NotFoundException('Project not found'));
     prod(failWith(verr('name', { isNotEmpty: 'SECRET message ignored' })));
     prod(new InternalServerErrorException('db.internal SECRET'));
     prod(new HttpException('SECRET teapot', 418));
+
     const { formatted, error } = nestShaped(new NotFoundException('SECRET'));
     formatGraphQLError(formatted, error, false);
+
     for (const m of methods) expect(log[m]).not.toHaveBeenCalled();
   });
 });
@@ -1106,6 +1143,7 @@ describe('development behaviour with an untrusted validation message list is unc
     const out = formatGraphQLError(formatted, error, false);
     const { stacktrace: _omitted, ...expectedExtensions } =
       formatted.extensions!;
+
     expect(out).toEqual({ ...formatted, extensions: expectedExtensions });
     expect(JSON.stringify(out)).toContain('hunter2');
   });

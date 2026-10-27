@@ -41,17 +41,23 @@ export class AuthService {
           email,
           passwordHash,
         });
+
         await this.organizationsService.createWithAdmin(
           tx,
           input.organizationName,
           user.id,
         );
+
         return user;
       });
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
         throw new ConflictException('Email already registered');
       }
+
       throw e;
     }
   }
@@ -64,6 +70,7 @@ export class AuthService {
       input.password,
       user?.passwordHash ?? DUMMY_HASH,
     );
+
     if (!user || !valid) {
       throw new UnauthorizedException('Invalid email or password');
     }
@@ -75,20 +82,35 @@ export class AuthService {
   }
 
   async refresh(refreshToken: string) {
-    const userId = await this.tokenService.consumeRefreshToken(refreshToken);
+    const userId =
+      await this.tokenService.getRefreshTokenUserId(refreshToken);
+
     if (!userId) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
     const user = await this.usersService.findById(userId);
+
     if (!user) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
+    // Complete fallible user lookup and JWT signing before token rotation.
     const accessToken = await this.tokenService.signAccessToken(user.id);
-    const newRefreshToken = await this.tokenService.issueRefreshToken(user.id);
 
-    return { accessToken, refreshToken: newRefreshToken, user };
+    // Atomic one-time-use check: concurrent replays must fail.
+    const rotation =
+      await this.tokenService.rotateRefreshToken(refreshToken);
+
+    if (!rotation) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    return {
+      accessToken,
+      refreshToken: rotation.refreshToken,
+      user,
+    };
   }
 
   async logout(refreshToken: string) {
@@ -98,9 +120,11 @@ export class AuthService {
 
   async me(userId: string) {
     const user = await this.usersService.findById(userId);
+
     if (!user) {
       throw new UnauthorizedException();
     }
+
     return user;
   }
 }

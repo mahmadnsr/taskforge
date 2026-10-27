@@ -1,4 +1,11 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  vi,
+  afterEach,
+} from 'vitest';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -19,6 +26,7 @@ describe('TokenService', () => {
   };
 
   let prisma: {
+    $transaction: ReturnType<typeof vi.fn>;
     refreshToken: {
       create: ReturnType<typeof vi.fn>;
       findUnique: ReturnType<typeof vi.fn>;
@@ -41,13 +49,23 @@ describe('TokenService', () => {
       get: vi.fn(),
     };
 
-    prisma = {
-      refreshToken: {
-        create: vi.fn(),
-        findUnique: vi.fn(),
-        deleteMany: vi.fn(),
-      },
+    const refreshToken = {
+      create: vi.fn(),
+      findUnique: vi.fn(),
+      deleteMany: vi.fn(),
     };
+
+    prisma = {
+      $transaction: vi.fn(),
+      refreshToken,
+    };
+
+    // Simulate Prisma's interactive transaction for unit tests.
+    prisma.$transaction.mockImplementation(
+      async (
+        callback: (tx: { refreshToken: typeof refreshToken }) => Promise<unknown>,
+      ) => callback({ refreshToken }),
+    );
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -79,7 +97,9 @@ describe('TokenService', () => {
     });
 
     it('should propagate JWT signing errors', async () => {
-      jwt.signAsync.mockRejectedValue(new Error('JWT signing failed'));
+      jwt.signAsync.mockRejectedValue(
+        new Error('JWT signing failed'),
+      );
 
       await expect(
         service.signAccessToken('user-1'),
@@ -123,7 +143,9 @@ describe('TokenService', () => {
 
       const createCall = prisma.refreshToken.create.mock.calls[0][0];
 
-      expect(config.get).toHaveBeenCalledWith('REFRESH_TOKEN_TTL_DAYS');
+      expect(config.get).toHaveBeenCalledWith(
+        'REFRESH_TOKEN_TTL_DAYS',
+      );
 
       expect(createCall.data.expiresAt).toEqual(
         new Date('2026-01-08T00:00:00.000Z'),
@@ -145,7 +167,8 @@ describe('TokenService', () => {
     it('should return null when the token does not exist', async () => {
       prisma.refreshToken.findUnique.mockResolvedValue(null);
 
-      const result = await service.consumeRefreshToken('unknown-token');
+      const result =
+        await service.consumeRefreshToken('unknown-token');
 
       expect(prisma.refreshToken.findUnique).toHaveBeenCalledWith({
         where: {
@@ -168,7 +191,8 @@ describe('TokenService', () => {
 
       prisma.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
 
-      const result = await service.consumeRefreshToken('valid-token');
+      const result =
+        await service.consumeRefreshToken('valid-token');
 
       expect(prisma.refreshToken.findUnique).toHaveBeenCalledWith({
         where: {
@@ -196,7 +220,8 @@ describe('TokenService', () => {
 
       prisma.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
 
-      const result = await service.consumeRefreshToken('expired-token');
+      const result =
+        await service.consumeRefreshToken('expired-token');
 
       expect(prisma.refreshToken.deleteMany).toHaveBeenCalledTimes(1);
       expect(result).toBeNull();
@@ -210,7 +235,8 @@ describe('TokenService', () => {
 
       prisma.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
 
-      const result = await service.consumeRefreshToken('already-used-token');
+      const result =
+        await service.consumeRefreshToken('already-used-token');
 
       expect(result).toBeNull();
     });
@@ -240,6 +266,215 @@ describe('TokenService', () => {
       await expect(
         service.consumeRefreshToken('valid-token'),
       ).rejects.toThrow('Database unavailable');
+    });
+  });
+
+  describe('getRefreshTokenUserId', () => {
+    it('should return the user ID for a valid, unexpired token', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+
+      const token = 'valid-refresh-token';
+
+      prisma.refreshToken.findUnique.mockResolvedValue({
+        userId: 'user-1',
+        expiresAt: new Date('2026-01-02T00:00:00.000Z'),
+      });
+
+      const result = await service.getRefreshTokenUserId(token);
+
+      expect(result).toBe('user-1');
+      expect(prisma.refreshToken.findUnique).toHaveBeenCalledWith({
+        where: { tokenHash: hashToken(token) },
+      });
+      expect(prisma.refreshToken.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('should return null when the token does not exist', async () => {
+      prisma.refreshToken.findUnique.mockResolvedValue(null);
+
+      const result =
+        await service.getRefreshTokenUserId('unknown-refresh-token');
+
+      expect(result).toBeNull();
+      expect(prisma.refreshToken.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('should return null when the token has expired', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-01-02T00:00:00.000Z'));
+
+      prisma.refreshToken.findUnique.mockResolvedValue({
+        userId: 'user-1',
+        expiresAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+
+      const result =
+        await service.getRefreshTokenUserId('expired-refresh-token');
+
+      expect(result).toBeNull();
+      expect(prisma.refreshToken.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('should propagate database lookup errors', async () => {
+      prisma.refreshToken.findUnique.mockRejectedValue(
+        new Error('Database unavailable'),
+      );
+
+      await expect(
+        service.getRefreshTokenUserId('valid-refresh-token'),
+      ).rejects.toThrow('Database unavailable');
+
+      expect(prisma.refreshToken.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('rotateRefreshToken', () => {
+    it('should atomically replace a valid token and return the new token', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+
+      config.get.mockReturnValue(7);
+
+      prisma.refreshToken.findUnique.mockResolvedValue({
+        userId: 'user-1',
+        expiresAt: new Date('2026-01-08T00:00:00.000Z'),
+      });
+
+      prisma.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.refreshToken.create.mockResolvedValue({});
+
+      const oldToken = 'old-refresh-token';
+      const result = await service.rotateRefreshToken(oldToken);
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+
+      expect(prisma.refreshToken.findUnique).toHaveBeenCalledWith({
+        where: {
+          tokenHash: hashToken(oldToken),
+        },
+      });
+
+      expect(prisma.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: {
+          tokenHash: hashToken(oldToken),
+          expiresAt: {
+            gt: new Date('2026-01-01T00:00:00.000Z'),
+          },
+        },
+      });
+
+      expect(result?.userId).toBe('user-1');
+      expect(result?.refreshToken).toMatch(/^[a-f0-9]{64}$/);
+      expect(result?.refreshToken).not.toBe(oldToken);
+
+      expect(prisma.refreshToken.create).toHaveBeenCalledTimes(1);
+
+      const createCall = prisma.refreshToken.create.mock.calls[0][0];
+
+      expect(createCall.data.userId).toBe('user-1');
+      expect(createCall.data.tokenHash).toBe(
+        hashToken(result!.refreshToken),
+      );
+      expect(createCall.data.tokenHash).not.toBe(result!.refreshToken);
+      expect(createCall.data.expiresAt).toEqual(
+        new Date('2026-01-08T00:00:00.000Z'),
+      );
+    });
+
+    it('should return null when the token does not exist', async () => {
+      prisma.refreshToken.findUnique.mockResolvedValue(null);
+
+      const result =
+        await service.rotateRefreshToken('unknown-token');
+
+      expect(result).toBeNull();
+      expect(prisma.refreshToken.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('should return null when the token has expired', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-01-08T00:00:00.000Z'));
+
+      prisma.refreshToken.findUnique.mockResolvedValue({
+        userId: 'user-1',
+        expiresAt: new Date('2026-01-07T00:00:00.000Z'),
+      });
+
+      const result =
+        await service.rotateRefreshToken('expired-token');
+
+      expect(result).toBeNull();
+      expect(prisma.refreshToken.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('should return null when another request has already consumed the token', async () => {
+      prisma.refreshToken.findUnique.mockResolvedValue({
+        userId: 'user-1',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+
+      // Simulate the conditional delete losing a race.
+      prisma.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
+
+      const result =
+        await service.rotateRefreshToken('already-used-token');
+
+      expect(result).toBeNull();
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('should propagate lookup errors', async () => {
+      prisma.refreshToken.findUnique.mockRejectedValue(
+        new Error('Database unavailable'),
+      );
+
+      await expect(
+        service.rotateRefreshToken('valid-token'),
+      ).rejects.toThrow('Database unavailable');
+
+      expect(prisma.refreshToken.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('should propagate deletion errors', async () => {
+      prisma.refreshToken.findUnique.mockResolvedValue({
+        userId: 'user-1',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+
+      prisma.refreshToken.deleteMany.mockRejectedValue(
+        new Error('Database unavailable'),
+      );
+
+      await expect(
+        service.rotateRefreshToken('valid-token'),
+      ).rejects.toThrow('Database unavailable');
+
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('should propagate replacement-token storage errors', async () => {
+      prisma.refreshToken.findUnique.mockResolvedValue({
+        userId: 'user-1',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+
+      prisma.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
+
+      prisma.refreshToken.create.mockRejectedValue(
+        new Error('Token storage failed'),
+      );
+
+      await expect(
+        service.rotateRefreshToken('valid-token'),
+      ).rejects.toThrow('Token storage failed');
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.refreshToken.deleteMany).toHaveBeenCalledTimes(1);
+      expect(prisma.refreshToken.create).toHaveBeenCalledTimes(1);
     });
   });
 

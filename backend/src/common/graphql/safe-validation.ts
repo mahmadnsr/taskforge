@@ -65,6 +65,8 @@ export const CONSTRAINT_MESSAGES: ReadonlyMap<string, string> = new Map([
   ['isUuid', 'must be a UUID'],
   ['maxLength', 'is too long'],
   ['minLength', 'is too short'],
+  ['isLength', 'has an invalid length'],
+  ['matches', 'has an invalid format'],
   ['isEnum', 'must be one of the allowed values'],
   ['isInt', 'must be an integer'],
   ['min', 'is below the minimum allowed value'],
@@ -149,6 +151,7 @@ export function recordedValidationFailures(
 function isApprovedPath(path: readonly string[]): boolean {
   return path.length === 1 && APPROVED_FIELDS.has(path[0]);
 }
+
 /**
  * Client-facing messages for the recorded failures: generated only for an
  * approved field AND an approved constraint, one fixed fallback entry for

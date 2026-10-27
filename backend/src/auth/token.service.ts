@@ -52,6 +52,71 @@ export class TokenService {
     return row.userId;
   }
 
+  async getRefreshTokenUserId(
+    token: string,
+  ): Promise<string | null> {
+    const row = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash: this.hash(token) },
+    });
+
+    if (!row || row.expiresAt <= new Date()) {
+      return null;
+    }
+
+    return row.userId;
+  }
+
+  async rotateRefreshToken(
+    token: string,
+  ): Promise<{ userId: string; refreshToken: string } | null> {
+    const tokenHash = this.hash(token);
+    const now = new Date();
+
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.refreshToken.findUnique({
+        where: { tokenHash },
+      });
+
+      if (!row || row.expiresAt <= now) {
+        return null;
+      }
+
+      // Conditional deletion ensures the same token cannot be
+      // successfully consumed by two concurrent transactions.
+      const { count } = await tx.refreshToken.deleteMany({
+        where: {
+          tokenHash,
+          expiresAt: { gt: now },
+        },
+      });
+
+      if (count !== 1) {
+        return null;
+      }
+
+      const newToken = randomBytes(32).toString('hex');
+      const days = Number(
+        this.config.get('REFRESH_TOKEN_TTL_DAYS') ?? 7,
+      );
+
+      // If creation fails, the transaction rolls back the deletion.
+      await tx.refreshToken.create({
+        data: {
+          userId: row.userId,
+          tokenHash: this.hash(newToken),
+          expiresAt: new Date(
+            Date.now() + days * 24 * 60 * 60 * 1000,
+          ),
+        },
+      });
+
+      return {
+        userId: row.userId,
+        refreshToken: newToken,
+      };
+    });
+  }
+
   async revokeRefreshToken(token: string) {
     await this.prisma.refreshToken.deleteMany({
       where: { tokenHash: this.hash(token) },

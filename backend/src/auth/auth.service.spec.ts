@@ -31,6 +31,8 @@ describe('AuthService', () => {
     signAccessToken: ReturnType<typeof vi.fn>;
     issueRefreshToken: ReturnType<typeof vi.fn>;
     consumeRefreshToken: ReturnType<typeof vi.fn>;
+    getRefreshTokenUserId: ReturnType<typeof vi.fn>;
+    rotateRefreshToken: ReturnType<typeof vi.fn>;
     revokeRefreshToken: ReturnType<typeof vi.fn>;
   };
 
@@ -63,6 +65,8 @@ describe('AuthService', () => {
       signAccessToken: vi.fn(),
       issueRefreshToken: vi.fn(),
       consumeRefreshToken: vi.fn(),
+      getRefreshTokenUserId: vi.fn(),
+      rotateRefreshToken: vi.fn(),
       revokeRefreshToken: vi.fn(),
     };
 
@@ -266,20 +270,34 @@ describe('AuthService', () => {
 
   describe('refresh', () => {
     it('should rotate refresh token and return new tokens for a valid token', async () => {
-      tokenService.consumeRefreshToken.mockResolvedValue(user.id);
+      tokenService.getRefreshTokenUserId.mockResolvedValue(user.id);
       usersService.findById.mockResolvedValue(user);
       tokenService.signAccessToken.mockResolvedValue('new-access-token');
-      tokenService.issueRefreshToken.mockResolvedValue('new-refresh-token');
+      tokenService.rotateRefreshToken.mockResolvedValue({
+        userId: user.id,
+        refreshToken: 'new-refresh-token',
+      });
 
       const result = await service.refresh('old-refresh-token');
 
-      expect(tokenService.consumeRefreshToken).toHaveBeenCalledWith(
+      expect(tokenService.getRefreshTokenUserId).toHaveBeenCalledWith(
+        'old-refresh-token',
+      );
+      expect(usersService.findById).toHaveBeenCalledWith(user.id);
+      expect(tokenService.signAccessToken).toHaveBeenCalledWith(user.id);
+      expect(tokenService.rotateRefreshToken).toHaveBeenCalledWith(
         'old-refresh-token',
       );
 
-      expect(usersService.findById).toHaveBeenCalledWith(user.id);
-      expect(tokenService.signAccessToken).toHaveBeenCalledWith(user.id);
-      expect(tokenService.issueRefreshToken).toHaveBeenCalledWith(user.id);
+      expect(tokenService.getRefreshTokenUserId.mock.invocationCallOrder[0])
+        .toBeLessThan(usersService.findById.mock.invocationCallOrder[0]);
+      expect(usersService.findById.mock.invocationCallOrder[0])
+        .toBeLessThan(tokenService.signAccessToken.mock.invocationCallOrder[0]);
+      expect(tokenService.signAccessToken.mock.invocationCallOrder[0])
+        .toBeLessThan(tokenService.rotateRefreshToken.mock.invocationCallOrder[0]);
+
+      expect(tokenService.consumeRefreshToken).not.toHaveBeenCalled();
+      expect(tokenService.issueRefreshToken).not.toHaveBeenCalled();
 
       expect(result).toEqual({
         accessToken: 'new-access-token',
@@ -289,41 +307,74 @@ describe('AuthService', () => {
     });
 
     it('should reject an invalid or expired refresh token', async () => {
-      tokenService.consumeRefreshToken.mockResolvedValue(null);
+      tokenService.getRefreshTokenUserId.mockResolvedValue(null);
 
       await expect(
         service.refresh('invalid-refresh-token'),
       ).rejects.toThrow(UnauthorizedException);
 
+      expect(tokenService.getRefreshTokenUserId).toHaveBeenCalledWith(
+        'invalid-refresh-token',
+      );
       expect(usersService.findById).not.toHaveBeenCalled();
       expect(tokenService.signAccessToken).not.toHaveBeenCalled();
+      expect(tokenService.rotateRefreshToken).not.toHaveBeenCalled();
     });
 
     it('should reject refresh when the user no longer exists', async () => {
-      tokenService.consumeRefreshToken.mockResolvedValue('deleted-user');
+      tokenService.getRefreshTokenUserId.mockResolvedValue('deleted-user');
       usersService.findById.mockResolvedValue(null);
 
       await expect(
         service.refresh('old-refresh-token'),
       ).rejects.toThrow(UnauthorizedException);
 
+      expect(usersService.findById).toHaveBeenCalledWith('deleted-user');
       expect(tokenService.signAccessToken).not.toHaveBeenCalled();
-      expect(tokenService.issueRefreshToken).not.toHaveBeenCalled();
+      expect(tokenService.rotateRefreshToken).not.toHaveBeenCalled();
     });
 
-    it('should propagate an error when issuing the new refresh token fails', async () => {
-      tokenService.consumeRefreshToken.mockResolvedValue(user.id);
+    it('should propagate an error when refresh-token rotation fails', async () => {
+      tokenService.getRefreshTokenUserId.mockResolvedValue(user.id);
       usersService.findById.mockResolvedValue(user);
-
       tokenService.signAccessToken.mockResolvedValue('new-access-token');
-
-      tokenService.issueRefreshToken.mockRejectedValue(
+      tokenService.rotateRefreshToken.mockRejectedValue(
         new Error('Token storage failed'),
       );
 
       await expect(
         service.refresh('old-refresh-token'),
       ).rejects.toThrow('Token storage failed');
+
+      expect(tokenService.signAccessToken).toHaveBeenCalledWith(user.id);
+      expect(tokenService.rotateRefreshToken).toHaveBeenCalledWith(
+        'old-refresh-token',
+      );
+    });
+
+    it('should propagate an access-token signing error before rotation', async () => {
+      tokenService.getRefreshTokenUserId.mockResolvedValue(user.id);
+      usersService.findById.mockResolvedValue(user);
+      tokenService.signAccessToken.mockRejectedValue(
+        new Error('JWT signing failed'),
+      );
+
+      await expect(
+        service.refresh('old-refresh-token'),
+      ).rejects.toThrow('JWT signing failed');
+
+      expect(tokenService.rotateRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it('should reject if another request consumes the token before rotation', async () => {
+      tokenService.getRefreshTokenUserId.mockResolvedValue(user.id);
+      usersService.findById.mockResolvedValue(user);
+      tokenService.signAccessToken.mockResolvedValue('new-access-token');
+      tokenService.rotateRefreshToken.mockResolvedValue(null);
+
+      await expect(
+        service.refresh('old-refresh-token'),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 

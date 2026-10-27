@@ -69,6 +69,7 @@ function collectThrown(): Thrown[] {
     for (const m of text.matchAll(call)) {
       const className = m[1];
       const arg = m[2].trim();
+
       if (!(KNOWN_CLASSES as readonly string[]).includes(className)) {
         result.push({
           file,
@@ -78,6 +79,7 @@ function collectThrown(): Thrown[] {
         });
         continue;
       }
+
       if (
         className === 'ServiceUnavailableException' &&
         arg === 'result'
@@ -85,20 +87,24 @@ function collectThrown(): Thrown[] {
         // Readiness response payload, not a client-facing exception message.
         continue;
       }
+
       if (arg === '') {
         result.push({ file, className, message: DEFAULT_MESSAGE[className] });
         continue;
       }
+
       const literal = /^(['"])((?:(?!\1).)*)\1,?$/s.exec(arg);
       if (literal) {
         result.push({ file, className, message: literal[2] });
         continue;
       }
+
       const constant = /^([A-Z][A-Z0-9_]*)$/.exec(arg);
       if (constant && constants.has(constant[1])) {
         result.push({ file, className, message: constants.get(constant[1])! });
         continue;
       }
+
       result.push({
         file,
         className,
@@ -116,6 +122,7 @@ function collectThrown(): Thrown[] {
       });
     }
   }
+
   return result;
 }
 
@@ -138,12 +145,14 @@ describe('public error messages vs. actual application code', () => {
         (t) => t.message !== null && !PUBLIC_ERROR_MESSAGES.has(t.message),
       )
       .map((t) => `${t.file}: "${t.message}"`);
+
     expect(missing).toEqual([]);
   });
 
   it('every PUBLIC_ERROR_MESSAGES entry is still thrown somewhere', () => {
     const used = new Set(thrown.map((t) => t.message));
     const unused = [...PUBLIC_ERROR_MESSAGES].filter((m) => !used.has(m));
+
     expect(unused).toEqual([]);
   });
 });
@@ -165,16 +174,20 @@ describe('DTO fields and rules vs. the validation feedback allowlists', () => {
     IsUUID: 'isUuid',
     MaxLength: 'maxLength',
     MinLength: 'minLength',
+    Length: 'isLength',
+    Matches: 'matches',
     IsEnum: 'isEnum',
     IsInt: 'isInt',
     Min: 'min',
     Max: 'max',
     IsOptional: null, // reports no constraint
   };
+
   const texts = sourceFiles().map((path) => ({
     file: relative(SRC, path),
     text: readFileSync(path, 'utf8'),
   }));
+
   const dtoTexts = texts.filter(({ text }) =>
     /from 'class-validator'/.test(text),
   );
@@ -186,12 +199,14 @@ describe('DTO fields and rules vs. the validation feedback allowlists', () => {
   it('every class-validator decorator in src/ maps to an approved constraint', () => {
     const decorator =
       /@((?:Is|Min|Max|Length|Matches|Array|Validat|Contains|NotContains|Equals|NotEquals|Allow|Ignore|Custom)\w*)\s*\(/g;
+
     const unknown = dtoTexts.flatMap(({ file, text }) =>
       [...text.matchAll(decorator)]
         .map((m) => m[1])
         .filter((name) => !(name in DECORATOR_TO_CONSTRAINT))
         .map((name) => `${file}: @${name}`),
     );
+
     expect(unknown).toEqual([]);
   });
 
@@ -201,28 +216,35 @@ describe('DTO fields and rules vs. the validation feedback allowlists', () => {
         /registerDecorator|ValidatorConstraint|ValidateBy\b/.test(text),
       )
       .map(({ file }) => file);
+
     expect(offenders).toEqual([]);
   });
 
   it('every approved constraint is used by some DTO, and every used one is approved', () => {
     const used = new Set<string>();
+
     for (const { text } of dtoTexts) {
-      for (const m of text.matchAll(/@(Is\w+|Min\w*|Max\w*)\s*\(/g)) {
-        const c = DECORATOR_TO_CONSTRAINT[m[1]];
-        if (c) used.add(c);
+      for (const m of text.matchAll(
+        /@(Is\w+|Min\w*|Max\w*|Length|Matches)\s*\(/g,
+      )) {
+        const constraint = DECORATOR_TO_CONSTRAINT[m[1]];
+        if (constraint) used.add(constraint);
       }
     }
+
     expect([...used].sort()).toEqual([...CONSTRAINT_MESSAGES.keys()].sort());
   });
 
   it('APPROVED_FIELDS is exactly the set of DTO properties', () => {
     const props = new Set<string>();
+
     for (const { text } of dtoTexts) {
       // class members declared at indent 2: `name!: string;` / `name?: string;`
       for (const m of text.matchAll(/^ {2}([a-z_]\w*)[!?]?\s*(?::|=)/gm)) {
         props.add(m[1]);
       }
     }
+
     expect([...props].sort()).toEqual([...APPROVED_FIELDS].sort());
   });
 });

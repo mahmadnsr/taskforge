@@ -19,8 +19,12 @@ import { TokenService } from './token.service.js';
       useFactory: (config: ConfigService) => ({
         secret: config.getOrThrow<string>('JWT_ACCESS_SECRET'),
         signOptions: {
+          algorithm: 'HS256',
           expiresIn: (config.get<string>('JWT_ACCESS_EXPIRES_IN') ??
             '15m') as JwtSignOptions['expiresIn'],
+        },
+        verifyOptions: {
+          algorithms: ['HS256'],
         },
       }),
     }),
