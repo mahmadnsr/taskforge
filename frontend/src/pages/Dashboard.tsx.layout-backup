@@ -1,0 +1,625 @@
+import { useEffect, useState } from 'react'
+import { gql } from '@apollo/client'
+import { useQuery } from '@apollo/client/react'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
+
+const MY_ORGANIZATIONS = gql`
+  query MyOrganizations {
+    myOrganizations {
+      id
+      name
+      slug
+    }
+  }
+`
+
+const DASHBOARD_SUMMARY = gql`
+  query DashboardSummary($organizationId: ID!) {
+    dashboardSummary(organizationId: $organizationId) {
+      totalProjects
+      totalTasks
+      pendingTasks
+      inProgressTasks
+      completedTasks
+      overdueTasks
+    }
+  }
+`
+
+const ORGANIZATION_PROJECTS = gql`
+  query OrganizationProjects(
+    $organizationId: ID!
+    $includeArchived: Boolean!
+  ) {
+    projects(
+      organizationId: $organizationId
+      includeArchived: $includeArchived
+    ) {
+      id
+      name
+      description
+      status
+      createdAt
+    }
+  }
+`
+
+type Organization = {
+  id: string
+  name: string
+  slug: string
+}
+
+type DashboardSummary = {
+  totalProjects?: number
+  totalTasks?: number
+  pendingTasks?: number
+  inProgressTasks?: number
+  completedTasks?: number
+  overdueTasks?: number
+}
+
+type Project = {
+  id: string
+  name?: string
+  description?: string | null
+  status?: string
+  createdAt?: string
+}
+
+type OrganizationsQueryData = {
+  myOrganizations: Organization[]
+}
+
+type DashboardSummaryQueryData = {
+  dashboardSummary: DashboardSummary
+}
+
+type ProjectsQueryData = {
+  projects: Project[]
+}
+
+type OrganizationVariables = {
+  organizationId: string
+}
+
+type ProjectsVariables = OrganizationVariables & {
+  includeArchived: boolean
+}
+
+function formatDate(value?: string): string {
+  if (!value) return 'Date unavailable'
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Date unavailable'
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date)
+}
+
+function Metric({
+  label,
+  value,
+  accent = 'text-white',
+}: {
+  label: string
+  value: number
+  accent?: string
+}) {
+  return (
+    <article className="rounded-2xl border border-white/8 bg-white/2.5 p-5 transition-colors hover:border-white/[0.14] hover:bg-white/[0.04]">
+      <p className="text-sm text-slate-400">{label}</p>
+
+      <p className={`mt-3 text-3xl font-semibold tracking-tight ${accent}`}>
+        {value.toLocaleString()}
+      </p>
+    </article>
+  )
+}
+
+function SectionLoader({ label }: { label: string }) {
+  return (
+    <div
+      className="flex items-center gap-3 py-8 text-sm text-slate-400"
+      role="status"
+      aria-live="polite"
+    >
+      <span
+        aria-hidden="true"
+        className="size-4 animate-spin rounded-full border-2 border-white/10 border-t-cyan-400"
+      />
+      {label}
+    </div>
+  )
+}
+
+export default function Dashboard() {
+  const { user, logout } = useAuth()
+
+  const [organizationId, setOrganizationId] = useState<string>('')
+  const [logoutError, setLogoutError] = useState<string>('')
+  const [loggingOut, setLoggingOut] = useState<boolean>(false)
+
+  const {
+    data: organizationsData,
+    loading: organizationsLoading,
+    error: organizationsError,
+    refetch: refetchOrganizations,
+  } = useQuery<OrganizationsQueryData>(MY_ORGANIZATIONS, {
+    fetchPolicy: 'cache-and-network',
+  })
+
+  const organizations = organizationsData?.myOrganizations ?? []
+
+  useEffect(() => {
+    if (organizations.length === 0) {
+      setOrganizationId('')
+      return
+    }
+
+    setOrganizationId((currentId) => {
+      const exists = organizations.some(
+        (organization) => organization.id === currentId,
+      )
+
+      if (exists) return currentId
+
+      return organizations[0]?.id ?? ''
+    })
+  }, [organizations])
+
+  const {
+    data: summaryData,
+    loading: summaryLoading,
+    error: summaryError,
+    refetch: refetchSummary,
+  } = useQuery<DashboardSummaryQueryData, OrganizationVariables>(
+    DASHBOARD_SUMMARY,
+    {
+      variables: { organizationId },
+      skip: !organizationId,
+      fetchPolicy: 'cache-and-network',
+    },
+  )
+
+  const {
+    data: projectsData,
+    loading: projectsLoading,
+    error: projectsError,
+    refetch: refetchProjects,
+  } = useQuery<ProjectsQueryData, ProjectsVariables>(
+    ORGANIZATION_PROJECTS,
+    {
+      variables: {
+        organizationId,
+        includeArchived: false,
+      },
+      skip: !organizationId,
+      fetchPolicy: 'cache-and-network',
+    },
+  )
+
+  const summary = summaryData?.dashboardSummary
+  const projects = projectsData?.projects ?? []
+
+  async function handleLogout(): Promise<void> {
+    if (loggingOut) return
+
+    setLoggingOut(true)
+    setLogoutError('')
+
+    try {
+      await logout()
+    } catch {
+      setLogoutError(
+        'Could not confirm server logout. Your local session has been cleared; the refresh token may need revocation.',
+      )
+    } finally {
+      setLoggingOut(false)
+    }
+  }
+
+  async function handleRetry(): Promise<void> {
+    const requests: Promise<unknown>[] = [refetchOrganizations()]
+
+    if (organizationId) {
+      requests.push(refetchSummary(), refetchProjects())
+    }
+
+    await Promise.allSettled(requests)
+  }
+
+  const pageError = summaryError || projectsError
+
+  return (
+    <main className="min-h-screen bg-[#080d18] text-slate-200">
+      <header className="sticky top-0 z-20 border-b border-white/8 bg-[#080d18]/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
+          <Link
+            to="/dashboard"
+            aria-label="Work-Bench dashboard"
+            className="flex shrink-0 items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+          >
+            <span
+              aria-hidden="true"
+              className="grid size-10 place-items-center rounded-xl bg-cyan-400 font-black text-slate-950 shadow-lg shadow-cyan-400/10"
+            >
+              W
+            </span>
+
+            <span className="text-lg font-semibold tracking-tight text-white">
+              Work-Bench
+            </span>
+          </Link>
+
+          <nav
+            aria-label="Main navigation"
+            className="flex items-center gap-2 sm:gap-3"
+          >
+            <Link
+              to="/dashboard"
+              aria-current="page"
+              className="rounded-lg bg-white/[0.07] px-3 py-2 text-sm font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+            >
+              Dashboard
+            </Link>
+
+            <Link
+              to="/projects"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition hover:bg-white/6 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+            >
+              Projects
+            </Link>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="rounded-lg border border-white/10 px-3 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
+            >
+              {loggingOut ? 'Signing out…' : 'Sign out'}
+            </button>
+          </nav>
+        </div>
+      </header>
+
+      <section className="mx-auto max-w-7xl px-5 py-9 sm:px-8 sm:py-12">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-cyan-400">
+              WORKSPACE OVERVIEW
+            </p>
+
+            <h1 className="mt-3 wrap-break-word text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              Welcome back{user?.name ? `, ${user.name}` : ''}
+            </h1>
+
+            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">
+              Track your projects, monitor team progress, and stay on top of
+              the work that matters.
+            </p>
+          </div>
+
+          {!organizationsLoading && organizations.length > 0 && (
+            <div className="w-full sm:w-64 sm:shrink-0">
+              <label
+                htmlFor="organization"
+                className="mb-2 block text-xs font-medium uppercase tracking-wider text-slate-400"
+              >
+                Current workspace
+              </label>
+
+              <select
+                id="organization"
+                value={organizationId}
+                onChange={(event) => setOrganizationId(event.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-[#0d1422] px-3 py-3 text-sm text-white outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10"
+              >
+                {organizations.map((organization) => (
+                  <option key={organization.id} value={organization.id}>
+                    {organization.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {logoutError && (
+          <p
+            role="alert"
+            className="mt-6 rounded-xl border border-amber-400/20 bg-amber-400/[0.07] p-4 text-sm leading-6 text-amber-200"
+          >
+            {logoutError}
+          </p>
+        )}
+
+        {organizationsLoading && organizations.length === 0 ? (
+          <SectionLoader label="Loading your workspaces…" />
+        ) : organizationsError && organizations.length === 0 ? (
+          <div className="mt-10 rounded-2xl border border-rose-400/20 bg-rose-400/4 p-6">
+            <p role="alert" className="text-sm text-rose-300">
+              Could not load your workspaces. Please try again.
+            </p>
+
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="mt-4 rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+            >
+              Try again
+            </button>
+          </div>
+        ) : organizations.length === 0 ? (
+          <section className="mt-10 rounded-2xl border border-white/8 bg-white/2.5 p-8">
+            <div className="grid size-12 place-items-center rounded-xl bg-cyan-400/10 text-xl text-cyan-300">
+              W
+            </div>
+
+            <h2 className="mt-5 text-xl font-semibold text-white">
+              No workspace found
+            </h2>
+
+            <p className="mt-2 max-w-lg text-sm leading-6 text-slate-400">
+              Your account is not associated with an organization yet. Once
+              you belong to a workspace, its projects and tasks will appear
+              here.
+            </p>
+          </section>
+        ) : (
+          <>
+            <section aria-labelledby="metrics-heading" className="mt-10">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <h2
+                  id="metrics-heading"
+                  className="text-base font-semibold text-white"
+                >
+                  At a glance
+                </h2>
+
+                {summaryLoading && summary && (
+                  <span role="status" className="text-xs text-slate-500">
+                    Updating…
+                  </span>
+                )}
+              </div>
+
+              {summaryLoading && !summary ? (
+                <SectionLoader label="Loading workspace metrics…" />
+              ) : summaryError && !summary ? (
+                <div className="rounded-xl border border-rose-400/20 p-5">
+                  <p role="alert" className="text-sm text-rose-300">
+                    Could not load workspace metrics.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={handleRetry}
+                    className="mt-3 text-sm font-medium text-cyan-400 hover:text-cyan-300"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : summary ? (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <Metric
+                    label="Total projects"
+                    value={summary.totalProjects ?? 0}
+                    accent="text-cyan-300"
+                  />
+
+                  <Metric
+                    label="Total tasks"
+                    value={summary.totalTasks ?? 0}
+                  />
+
+                  <Metric
+                    label="In progress"
+                    value={summary.inProgressTasks ?? 0}
+                    accent="text-sky-300"
+                  />
+
+                  <Metric
+                    label="Overdue tasks"
+                    value={summary.overdueTasks ?? 0}
+                    accent={
+                      (summary.overdueTasks ?? 0) > 0
+                        ? 'text-rose-300'
+                        : 'text-emerald-300'
+                    }
+                  />
+                </div>
+              ) : null}
+
+              {summary && (
+                <div className="mt-4 flex flex-wrap gap-x-8 gap-y-3 rounded-xl border border-white/[0.07] bg-white/2 px-5 py-4 text-sm">
+                  <p className="text-slate-400">
+                    Pending{' '}
+                    <span className="ml-1 font-semibold text-amber-200">
+                      {summary.pendingTasks ?? 0}
+                    </span>
+                  </p>
+
+                  <p className="text-slate-400">
+                    Completed{' '}
+                    <span className="ml-1 font-semibold text-emerald-300">
+                      {summary.completedTasks ?? 0}
+                    </span>
+                  </p>
+                </div>
+              )}
+            </section>
+
+            <section aria-labelledby="projects-heading" className="mt-12">
+              <div className="flex flex-col gap-4 border-b border-white/8 pb-5 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2
+                    id="projects-heading"
+                    className="text-xl font-semibold tracking-tight text-white"
+                  >
+                    Recent projects
+                  </h2>
+
+                  <p className="mt-2 text-sm text-slate-400">
+                    A quick look at the active projects in this workspace.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  {projects.length > 0 && (
+                    <span className="text-sm text-slate-400">
+                      {projects.length} active
+                    </span>
+                  )}
+
+                  <Link
+                    to="/projects"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#080d18]"
+                  >
+                    View projects
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
+              </div>
+
+              {projectsLoading && !projectsData ? (
+                <SectionLoader label="Loading projects…" />
+              ) : projectsError && !projectsData ? (
+                <div className="py-8">
+                  <p role="alert" className="text-sm text-rose-300">
+                    Could not load projects.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={handleRetry}
+                    className="mt-3 text-sm font-medium text-cyan-400 hover:text-cyan-300"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : projects.length === 0 ? (
+                <div className="mt-5 rounded-2xl border border-dashed border-white/12 px-6 py-10 text-center">
+                  <div className="mx-auto grid size-12 place-items-center rounded-xl bg-white/4 text-xl text-slate-300">
+                    +
+                  </div>
+
+                  <h3 className="mt-4 font-semibold text-white">
+                    No active projects yet
+                  </h3>
+
+                  <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-400">
+                    Your projects will appear here when they are available in
+                    this workspace.
+                  </p>
+
+                  <Link
+                    to="/projects"
+                    className="mt-5 inline-flex rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:border-cyan-400/40 hover:bg-cyan-400/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                  >
+                    Open project management
+                  </Link>
+                </div>
+              ) : (
+                <div className="mt-2 divide-y divide-white/[0.07]">
+                  {projects.slice(0, 5).map((project) => {
+                    const projectName = project.name?.trim() || 'Untitled project'
+                    const createdAt = project.createdAt
+
+                    return (
+                      <article
+                        key={project.id}
+                        className="flex flex-col gap-3 py-5 sm:flex-row sm:items-start sm:justify-between"
+                      >
+                        <div className="flex min-w-0 gap-3">
+                          <span
+                            aria-hidden="true"
+                            className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-xl border border-cyan-400/10 bg-cyan-400/6 text-sm font-semibold text-cyan-300"
+                          >
+                            {projectName.charAt(0).toUpperCase()}
+                          </span>
+
+                          <div className="min-w-0">
+                            <h3 className="wrap-break-word font-medium text-white">
+                              {projectName}
+                            </h3>
+
+                            <p className="mt-1 text-xs text-emerald-300">
+                              {project.status ?? 'Active'}
+                            </p>
+
+                            {project.description && (
+                              <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-400">
+                                {project.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <time
+                          dateTime={createdAt}
+                          className="shrink-0 text-xs text-slate-500 sm:pt-1"
+                        >
+                          Created {formatDate(createdAt)}
+                        </time>
+                      </article>
+                    )
+                  })}
+                </div>
+              )}
+
+              {projects.length > 5 && (
+                <div className="border-t border-white/8 py-4">
+                  <Link
+                    to="/projects"
+                    className="text-sm font-medium text-cyan-400 transition hover:text-cyan-300"
+                  >
+                    View all {projects.length} projects →
+                  </Link>
+                </div>
+              )}
+            </section>
+
+            {pageError && (summary || projectsData) && (
+              <div className="mt-6 flex flex-wrap items-center gap-3 rounded-xl border border-amber-400/15 bg-amber-400/4 p-4 text-sm">
+                <p className="text-slate-300">
+                  Some workspace data could not be refreshed.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  className="font-medium text-cyan-400 hover:text-cyan-300"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        <section className="mt-12 border-t border-white/8 pt-6">
+          <p className="break-all text-sm text-slate-400">
+            Signed in as{' '}
+            <span className="text-slate-300">
+              {user?.email || 'Account details unavailable'}
+            </span>
+          </p>
+        </section>
+
+        <footer className="mt-10 border-t border-white/8 pt-6 text-sm text-slate-500">
+          © {new Date().getFullYear()} Work-Bench
+          <span className="mx-2 text-slate-700">·</span>
+          Built for focused teamwork.
+        </footer>
+      </section>
+    </main>
+  )
+}

@@ -1,0 +1,192 @@
+import { lazy, Suspense } from 'react'
+import { ApolloProvider } from '@apollo/client/react'
+import {
+  BrowserRouter,
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom'
+import { AuthProvider, useAuth } from './auth/AuthContext'
+import { apolloClient } from './lib/apollo'
+import AppLayout from './layouts/AppLayout'
+
+const Home = lazy(() => import('./pages/Home'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Login = lazy(() => import('./pages/Login'))
+const Register = lazy(() => import('./pages/Register'))
+const Projects = lazy(() => import('./pages/Projects'))
+const Members = lazy(() => import('./pages/Members'))
+const AcceptInvitation = lazy(() => import('./pages/AcceptInvitation'))
+
+function PageLoader() {
+  return (
+    <main
+      className="grid min-h-screen place-items-center bg-[#080d18] text-slate-200"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex flex-col items-center gap-4">
+        <div
+          className="size-9 animate-spin rounded-full border-2 border-white/10 border-t-cyan-400"
+          aria-hidden="true"
+        />
+        <p className="text-sm text-slate-400">
+          Loading Work-Bench…
+        </p>
+      </div>
+    </main>
+  )
+}
+
+function NotFound() {
+  return (
+    <main className="grid min-h-screen place-items-center bg-[#080d18] px-5 text-slate-200">
+      <section className="max-w-md text-center">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
+          Error 404
+        </p>
+
+        <h1 className="mt-4 text-3xl font-bold text-white">
+          Page not found
+        </h1>
+
+        <p className="mt-3 leading-7 text-slate-400">
+          The page you are looking for does not exist.
+        </p>
+
+        <Link
+          to="/"
+          className="mt-6 inline-flex rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#080d18]"
+        >
+          Back to Work-Bench
+        </Link>
+      </section>
+    </main>
+  )
+}
+
+function ProtectedRoute({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const { isAuthenticated, isInitializing } = useAuth()
+  const location = useLocation()
+
+  if (isInitializing) {
+    return <PageLoader />
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{
+          from: `${location.pathname}${location.search}`,
+        }}
+      />
+    )
+  }
+
+  return children
+}
+
+function LoginRoute() {
+  const location = useLocation()
+
+  const message = (
+    location.state as { message?: string } | null
+  )?.message
+
+  return (
+    <>
+      {message && (
+        <div
+          role="status"
+          className="fixed left-1/2 top-4 z-10 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200"
+        >
+          {message}
+        </div>
+      )}
+
+      <Login />
+    </>
+  )
+}
+
+function AppRoutes() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        {/* Public landing homepage */}
+        <Route path="/" element={<Home />} />
+
+        {/* Authentication pages */}
+        <Route path="/login" element={<LoginRoute />} />
+        <Route path="/register" element={<Register />} />
+
+        {/* Invitation acceptance */}
+        <Route
+          path="/accept-invitation"
+          element={
+            <ProtectedRoute>
+              <AcceptInvitation />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Protected application pages */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Dashboard />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/projects"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Projects />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/members"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Members />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Fallback for unknown routes */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
+  )
+}
+
+export default function App() {
+  return (
+    <ApolloProvider client={apolloClient}>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AuthProvider>
+    </ApolloProvider>
+  )
+}
