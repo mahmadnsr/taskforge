@@ -15,7 +15,16 @@ import { randomUUID } from 'node:crypto';
 const prisma = new PrismaService();
 
 const queue = new Queue('taskforge', {
-  connection: { host: '127.0.0.1', port: 6380 },
+  connection: {
+    host: process.env.TEST_REDIS_HOST ?? '127.0.0.1',
+    port: Number(process.env.TEST_REDIS_PORT ?? '6381'),
+    ...(process.env.TEST_REDIS_USERNAME
+      ? { username: process.env.TEST_REDIS_USERNAME }
+      : {}),
+    ...(process.env.TEST_REDIS_PASSWORD
+      ? { password: process.env.TEST_REDIS_PASSWORD }
+      : {}),
+  },
 });
 
 const queues = new QueuesService(queue as never);

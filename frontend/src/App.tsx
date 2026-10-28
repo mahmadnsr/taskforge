@@ -23,16 +23,16 @@ const AcceptInvitation = lazy(() => import('./pages/AcceptInvitation'))
 function PageLoader() {
   return (
     <main
-      className="grid min-h-screen place-items-center bg-[#080d18] text-slate-200"
+      className="grid min-h-screen place-items-center bg-[#F6F6F4] text-stone-700"
       role="status"
       aria-live="polite"
     >
       <div className="flex flex-col items-center gap-4">
         <div
-          className="size-9 animate-spin rounded-full border-2 border-white/10 border-t-cyan-400"
+          className="size-9 animate-spin rounded-full border-2 border-stone-200 border-t-teal-700"
           aria-hidden="true"
         />
-        <p className="text-sm text-slate-400">
+        <p className="text-[13px] font-light tracking-wide text-stone-400">
           Loading Work-Bench…
         </p>
       </div>
@@ -42,23 +42,23 @@ function PageLoader() {
 
 function NotFound() {
   return (
-    <main className="grid min-h-screen place-items-center bg-[#080d18] px-5 text-slate-200">
+    <main className="grid min-h-screen place-items-center bg-[#F6F6F4] px-5 text-stone-700">
       <section className="max-w-md text-center">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
+        <p className="text-[10px] font-medium uppercase tracking-[0.24em] text-teal-700/80">
           Error 404
         </p>
 
-        <h1 className="mt-4 text-3xl font-bold text-white">
+        <h1 className="mt-4 text-[28px] font-light tracking-tight text-stone-900">
           Page not found
         </h1>
 
-        <p className="mt-3 leading-7 text-slate-400">
+        <p className="mt-3 text-[13px] font-light leading-7 text-stone-400">
           The page you are looking for does not exist.
         </p>
 
         <Link
           to="/"
-          className="mt-6 inline-flex rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#080d18]"
+          className="mt-6 inline-flex min-h-10 items-center justify-center rounded-xl bg-teal-700 px-5 py-3 text-[12.5px] font-medium tracking-wide text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F6F6F4]"
         >
           Back to Work-Bench
         </Link>
@@ -106,7 +106,7 @@ function LoginRoute() {
       {message && (
         <div
           role="status"
-          className="fixed left-1/2 top-4 z-10 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200"
+          className="fixed left-1/2 top-4 z-10 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-[12.5px] font-light text-emerald-800 shadow-[0_8px_24px_-14px_rgba(28,25,23,0.12)]"
         >
           {message}
         </div>
@@ -121,14 +121,10 @@ function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
-        {/* Public landing homepage */}
         <Route path="/" element={<Home />} />
-
-        {/* Authentication pages */}
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/register" element={<Register />} />
 
-        {/* Invitation acceptance */}
         <Route
           path="/accept-invitation"
           element={
@@ -138,7 +134,6 @@ function AppRoutes() {
           }
         />
 
-        {/* Protected application pages */}
         <Route
           path="/dashboard"
           element={
@@ -172,7 +167,6 @@ function AppRoutes() {
           }
         />
 
-        {/* Fallback for unknown routes */}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

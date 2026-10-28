@@ -1,0 +1,39 @@
+# Week 8 — Day 7: Documentation and Release Review
+
+## Verified on 2026-10-26
+
+- Lint passed with zero warnings and errors.
+- NestJS build passed.
+- TypeScript type-check passed.
+- 35 test files and 614 tests passed.
+- PostgreSQL/BullMQ reminder integration test passed.
+- Prisma reported 14 migrations and an up-to-date database schema.
+- `git diff --check` passed.
+
+## Reliability guarantees and limitations
+
+- Outbox publication is at-least-once, not exactly-once.
+- An exhausted outbox event remains unpublished and requires operational
+  review.
+- Ambiguous reminder-email outcomes suppress automatic resend to reduce
+  duplicate-email risk.
+- Stale reminder processing claims require reconciliation.
+- SMTP integration was excluded because valid SMTP settings were not
+  available in the local environment.
+
+## Release checklist
+
+- [x] Automated lint, build, type-check, and selected test suite pass.
+- [x] Database migration status verified.
+- [x] Background-job documentation updated.
+- [x] Reliability limitations documented.
+- [ ] Configure and verify a real SMTP provider in a suitable environment.
+- [ ] Confirm deployment secrets, Redis settings, and production CORS.
+- [ ] Confirm operational monitoring and a manual reconciliation procedure
+      for exhausted outbox events and uncertain reminder delivery.
+
+## Release decision
+
+Automated local verification passed. Do not interpret this as an unconditional
+production release approval until the outstanding environment and operational
+checklist items have been reviewed.

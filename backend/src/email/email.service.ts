@@ -12,6 +12,7 @@ export class EmailService {
     to: string;
     subject: string;
     text: string;
+    html?: string;
   }): Promise<void> {
     const host = this.config.get<string>('SMTP_HOST');
     const portValue = this.config.get<string>('SMTP_PORT');
@@ -45,6 +46,7 @@ export class EmailService {
       to: input.to,
       subject: input.subject,
       text: input.text,
+      ...(input.html ? { html: input.html } : {}),
     });
   }
 }

@@ -8,7 +8,9 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { UsersService } from '../users/users.service.js';
 import { OrganizationsService } from '../organizations/organizations.service.js';
+import { InvitationsService } from '../organizations/invitations.service.js';
 import { RegisterInput } from './dto/register.input.js';
+import { RegisterWithInvitationInput } from './dto/register-with-invitation.input.js';
 import { LoginInput } from './dto/login.input.js';
 import { TokenService } from './token.service.js';
 
@@ -22,12 +24,14 @@ export class AuthService {
     private usersService: UsersService,
     private organizationsService: OrganizationsService,
     private tokenService: TokenService,
+    private invitationsService: InvitationsService,
   ) {}
 
   async register(input: RegisterInput) {
     const email = input.email.toLowerCase().trim();
 
     const existing = await this.usersService.findByEmail(email);
+
     if (existing) {
       throw new ConflictException('Email already registered');
     }
@@ -46,6 +50,46 @@ export class AuthService {
           tx,
           input.organizationName,
           user.id,
+        );
+
+        return user;
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException('Email already registered');
+      }
+
+      throw e;
+    }
+  }
+
+  async registerWithInvitation(input: RegisterWithInvitationInput) {
+    const email = input.email.toLowerCase().trim();
+
+    const existing = await this.usersService.findByEmail(email);
+
+    if (existing) {
+      throw new ConflictException('Email already registered');
+    }
+
+    const passwordHash = await bcrypt.hash(input.password, 12);
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const user = await this.usersService.create(tx, {
+          name: input.name,
+          email,
+          passwordHash,
+        });
+
+        await this.invitationsService.acceptInvitationInTransaction(
+          tx,
+          user.id,
+          email,
+          input.invitationToken,
         );
 
         return user;

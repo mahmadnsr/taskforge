@@ -9,7 +9,7 @@ const features = [
     title: 'Project Management',
     description:
       'Organize projects, track progress, and keep your team moving in the right direction.',
-    color: 'from-cyan-400/20 to-blue-500/5',
+    color: 'from-zinc-800/40 to-transparent',
   },
   {
     number: '02',
@@ -17,7 +17,7 @@ const features = [
     title: 'Task Management',
     description:
       'Create tasks, assign responsibilities, and bring clarity to everyday work.',
-    color: 'from-violet-400/20 to-indigo-500/5',
+    color: 'from-zinc-800/40 to-transparent',
   },
   {
     number: '03',
@@ -25,7 +25,7 @@ const features = [
     title: 'Team Collaboration',
     description:
       'Bring your team together with clear roles, shared projects, and organized workflows.',
-    color: 'from-emerald-400/20 to-teal-500/5',
+    color: 'from-zinc-800/40 to-transparent',
   },
   {
     number: '04',
@@ -33,7 +33,7 @@ const features = [
     title: 'Smart Notifications',
     description:
       'Stay informed about assignments, task updates, and important team activity.',
-    color: 'from-amber-400/20 to-orange-500/5',
+    color: 'from-zinc-800/40 to-transparent',
   },
   {
     number: '05',
@@ -41,7 +41,7 @@ const features = [
     title: 'Progress Tracking',
     description:
       'Understand project activity and follow your team’s progress from one workspace.',
-    color: 'from-pink-400/20 to-rose-500/5',
+    color: 'from-zinc-800/40 to-transparent',
   },
   {
     number: '06',
@@ -49,7 +49,7 @@ const features = [
     title: 'Team Workspace',
     description:
       'Keep your organization, members, and projects connected in one place.',
-    color: 'from-sky-400/20 to-cyan-500/5',
+    color: 'from-zinc-800/40 to-transparent',
   },
 ]
 
@@ -59,14 +59,14 @@ function Brand({ onClick }: { onClick?: () => void }) {
       to="/"
       onClick={onClick}
       aria-label="Work-Bench home"
-      className="group inline-flex shrink-0 items-center gap-3"
+      className="group inline-flex shrink-0 items-center gap-2.5"
     >
-      <span className="relative grid size-10 place-items-center overflow-hidden rounded-xl border border-cyan-300/30 bg-gradient-to-br from-cyan-300 to-blue-500 text-lg font-black text-slate-950 shadow-lg shadow-cyan-500/20 transition-transform group-hover:scale-105">
+      <span className="grid size-8 place-items-center rounded-md border border-zinc-800 bg-zinc-900 text-[13px] font-medium text-zinc-200 transition-transform group-hover:scale-105">
         W
       </span>
 
-      <span className="text-lg font-bold tracking-tight text-white sm:text-xl">
-        Work<span className="text-cyan-400">-</span>Bench
+      <span className="text-[14px] font-medium tracking-wide text-zinc-200">
+        Work<span className="text-zinc-500">-</span>Bench
       </span>
     </Link>
   )
@@ -86,31 +86,31 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#080d18] text-slate-200">
+    <div className="min-h-screen overflow-hidden bg-[#09090b] text-zinc-300 selection:bg-teal-500/30">
       {/* Navigation */}
-      <header className="sticky top-0 z-50 border-b border-white/[0.07] bg-[#080d18]/85 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-zinc-800/80 bg-[#09090b]/85 backdrop-blur-xl">
         <nav
           aria-label="Main navigation"
-          className="mx-auto flex min-h-[76px] max-w-7xl items-center justify-between gap-4 px-5 sm:px-8 lg:px-10"
+          className="mx-auto flex min-h-[64px] max-w-6xl items-center justify-between gap-4 px-5 sm:px-8"
         >
           <Brand onClick={closeMenu} />
 
-          <div className="hidden items-center gap-8 md:flex">
+          <div className="hidden items-center gap-6 md:flex">
             <Link
               to="/"
-              className="text-sm font-medium text-white transition hover:text-cyan-300"
+              className="text-[13px] font-medium text-zinc-100 transition hover:text-white"
             >
               Home
             </Link>
             <a
               href="#features"
-              className="text-sm font-medium text-slate-400 transition hover:text-cyan-300"
+              className="text-[13px] text-zinc-400 transition hover:text-zinc-200"
             >
               Features
             </a>
             <a
               href="#about"
-              className="text-sm font-medium text-slate-400 transition hover:text-cyan-300"
+              className="text-[13px] text-zinc-400 transition hover:text-zinc-200"
             >
               About
             </a>
@@ -120,23 +120,23 @@ export default function Home() {
             {isAuthenticated ? (
               <Link
                 to="/dashboard"
-                className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-cyan-300/40 hover:bg-white/5"
+                className="rounded-lg border border-zinc-800 px-3.5 py-2 text-[13px] font-medium text-zinc-200 transition hover:bg-zinc-800"
               >
-                Open Dashboard
+                Dashboard
               </Link>
             ) : (
               <>
                 <Link
                   to="/login"
-                  className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:text-white"
+                  className="rounded-lg px-3.5 py-2 text-[13px] font-medium text-zinc-400 transition hover:text-zinc-200"
                 >
                   Log in
                 </Link>
                 <Link
                   to="/register"
-                  className="rounded-xl bg-cyan-300 px-5 py-2.5 text-sm font-bold text-slate-950 shadow-lg shadow-cyan-500/10 transition hover:bg-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#080d18]"
+                  className="rounded-lg bg-zinc-100 px-4 py-2 text-[13px] font-medium text-zinc-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#09090b]"
                 >
-                  Create account <span aria-hidden="true">↗</span>
+                  Create account
                 </Link>
               </>
             )}
@@ -147,47 +147,47 @@ export default function Home() {
             aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((open) => !open)}
-            className="grid size-10 place-items-center rounded-xl border border-white/10 text-xl text-white transition hover:bg-white/5 sm:hidden"
+            className="grid size-9 place-items-center rounded-lg border border-zinc-800 text-lg text-zinc-300 transition hover:bg-zinc-800 sm:hidden"
           >
             {menuOpen ? '×' : '☰'}
           </button>
         </nav>
 
         {menuOpen && (
-          <div className="border-t border-white/[0.07] bg-[#0b1220] px-5 py-5 sm:hidden">
-            <div className="mx-auto flex max-w-7xl flex-col gap-4">
-              <Link to="/" onClick={closeMenu} className="text-sm text-white">
+          <div className="border-t border-zinc-800 bg-[#09090b] px-5 py-5 sm:hidden">
+            <div className="mx-auto flex max-w-6xl flex-col gap-4">
+              <Link to="/" onClick={closeMenu} className="text-[13px] text-zinc-100">
                 Home
               </Link>
-              <a href="#features" onClick={closeMenu} className="text-sm text-slate-300">
+              <a href="#features" onClick={closeMenu} className="text-[13px] text-zinc-400">
                 Features
               </a>
-              <a href="#about" onClick={closeMenu} className="text-sm text-slate-300">
+              <a href="#about" onClick={closeMenu} className="text-[13px] text-zinc-400">
                 About
               </a>
 
-              <div className="mt-2 grid grid-cols-2 gap-3 border-t border-white/10 pt-4">
+              <div className="mt-2 grid grid-cols-2 gap-3 border-t border-zinc-800 pt-4">
                 {isAuthenticated ? (
                   <Link
                     to="/dashboard"
                     onClick={closeMenu}
-                    className="col-span-2 rounded-xl bg-cyan-300 px-4 py-3 text-center text-sm font-bold text-slate-950"
+                    className="col-span-2 rounded-lg bg-zinc-100 px-4 py-2.5 text-center text-[13px] font-medium text-zinc-900"
                   >
-                    Open Dashboard
+                    Dashboard
                   </Link>
                 ) : (
                   <>
                     <Link
                       to="/login"
                       onClick={closeMenu}
-                      className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-semibold text-white"
+                      className="rounded-lg border border-zinc-800 px-4 py-2.5 text-center text-[13px] font-medium text-zinc-200"
                     >
                       Log in
                     </Link>
                     <Link
                       to="/register"
                       onClick={closeMenu}
-                      className="rounded-xl bg-cyan-300 px-4 py-3 text-center text-sm font-bold text-slate-950"
+                      className="rounded-lg bg-zinc-100 px-4 py-2.5 text-center text-[13px] font-medium text-zinc-900"
                     >
                       Create account
                     </Link>
@@ -202,38 +202,27 @@ export default function Home() {
       <main>
         {/* Hero */}
         <section className="relative isolate">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
-          >
-            <div className="absolute -top-48 left-1/2 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-cyan-500/[0.12] blur-[120px]" />
-            <div className="absolute right-[-180px] top-48 h-80 w-80 rounded-full bg-blue-600/[0.12] blur-[100px]" />
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.035)_1px,transparent_1px)] bg-[size:56px_56px] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
-          </div>
-
-          <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 pb-24 pt-20 sm:px-8 sm:pb-28 sm:pt-28 lg:grid-cols-[1.08fr_0.92fr] lg:gap-10 lg:px-10 lg:pb-32 lg:pt-32">
+          <div className="mx-auto grid max-w-6xl items-center gap-14 px-5 pb-24 pt-20 sm:px-8 sm:pb-28 sm:pt-28 lg:grid-cols-[1.08fr_0.92fr] lg:gap-10">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/[0.07] px-3.5 py-2 text-xs font-semibold tracking-wide text-cyan-200 sm:text-sm">
-                <span className="size-2 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,0.8)]" />
-                YOUR TEAM. YOUR WORKSPACE.
+              <div className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/50 px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-zinc-400">
+                <span className="size-1.5 rounded-full bg-teal-400" />
+                Your team. Your workspace.
               </div>
 
-              <h1 className="mt-7 max-w-3xl text-4xl font-bold leading-[1.12] tracking-tight text-white sm:text-5xl lg:text-6xl xl:text-7xl">
-                Great work starts with{' '}
-                <span className="bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-400 bg-clip-text text-transparent">
-                  better teamwork.
-                </span>
+              <h1 className="mt-6 max-w-2xl text-[32px] font-light leading-[1.1] tracking-tight text-zinc-100 sm:text-4xl lg:text-[42px]">
+                Great work starts with <br className="hidden sm:block" />
+                <span className="text-teal-400">better teamwork.</span>
               </h1>
 
-              <p className="mt-6 max-w-xl text-base leading-8 text-slate-400 sm:text-lg">
+              <p className="mt-6 max-w-md text-[13.5px] leading-relaxed text-zinc-400">
                 Plan projects, manage tasks, and bring your team together.
                 Work-Bench gives your work a clear place to move forward.
               </p>
 
-              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link
                   to={isAuthenticated ? '/dashboard' : '/register'}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-6 py-3 font-bold text-slate-950 shadow-xl shadow-cyan-500/10 transition hover:-translate-y-0.5 hover:bg-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#080d18]"
+                  className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-lg bg-zinc-100 px-5 text-[13px] font-medium text-zinc-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#09090b]"
                 >
                   {isAuthenticated ? 'Go to Dashboard' : 'Get started for free'}
                   <span aria-hidden="true">→</span>
@@ -241,76 +230,71 @@ export default function Home() {
 
                 <a
                   href="#features"
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-6 py-3 font-semibold text-white transition hover:border-cyan-300/30 hover:bg-white/[0.06]"
+                  className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/30 px-5 text-[13px] font-medium text-zinc-300 transition hover:bg-zinc-800"
                 >
                   Explore features <span aria-hidden="true">↓</span>
                 </a>
               </div>
 
-              <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-slate-500">
-                <span className="inline-flex items-center gap-2">
-                  <span className="text-cyan-300">✓</span> Organized workflows
+              <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11.5px] text-zinc-500">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="text-teal-500/70">✓</span> Organized workflows
                 </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="text-cyan-300">✓</span> Team-focused workspace
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="text-teal-500/70">✓</span> Team-focused workspace
                 </span>
               </div>
             </div>
 
             {/* Decorative workspace preview */}
             <div className="relative mx-auto w-full max-w-lg">
-              <div
-                aria-hidden="true"
-                className="absolute -inset-5 rounded-[2rem] bg-gradient-to-br from-cyan-400/10 via-blue-500/5 to-violet-500/10 blur-2xl"
-              />
-
-              <div className="relative rounded-3xl border border-white/10 bg-[#0d1525]/95 p-4 shadow-2xl shadow-black/40 sm:p-6">
-                <div className="flex items-center justify-between border-b border-white/[0.08] pb-5">
+              <div className="relative rounded-2xl border border-zinc-800 bg-[#121214] p-4 shadow-2xl sm:p-5">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="grid size-10 place-items-center rounded-xl bg-cyan-300/10 text-lg text-cyan-300">
+                    <div className="grid size-8 place-items-center rounded-lg bg-zinc-800/50 text-sm text-zinc-400">
                       ◫
                     </div>
                     <div>
-                      <p className="font-semibold text-white">Workspace overview</p>
-                      <p className="mt-1 text-xs text-slate-500">A clearer way to work</p>
+                      <p className="text-[13px] font-medium text-zinc-200">Workspace overview</p>
+                      <p className="mt-0.5 text-[10.5px] text-zinc-500">A clearer way to work</p>
                     </div>
                   </div>
-                  <span className="rounded-lg border border-emerald-400/20 bg-emerald-400/[0.08] px-2.5 py-1.5 text-xs font-medium text-emerald-300">
+                  <span className="rounded-full border border-teal-500/20 bg-teal-500/10 px-2.5 py-1 text-[10px] font-medium text-teal-400">
                     Organized
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 py-5">
-                  <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
-                    <p className="text-sm text-slate-400">Projects</p>
-                    <p className="mt-3 text-2xl font-bold text-white">Plan</p>
-                    <p className="mt-1 text-xs text-slate-500">Keep work structured</p>
+                <div className="grid grid-cols-2 gap-3 py-4">
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
+                    <p className="text-[11px] font-medium text-zinc-500">Projects</p>
+                    <p className="mt-1 text-lg font-light text-zinc-200">Plan</p>
+                    <p className="mt-0.5 text-[10.5px] text-zinc-600">Keep work structured</p>
                   </div>
-                  <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
-                    <p className="text-sm text-slate-400">Tasks</p>
-                    <p className="mt-3 text-2xl font-bold text-white">Focus</p>
-                    <p className="mt-1 text-xs text-slate-500">Know what comes next</p>
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
+                    <p className="text-[11px] font-medium text-zinc-500">Tasks</p>
+                    <p className="mt-1 text-lg font-light text-zinc-200">Focus</p>
+                    <p className="mt-0.5 text-[10.5px] text-zinc-600">Know what comes next</p>
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 sm:p-5">
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-white">A connected team</p>
-                    <span className="text-xs text-cyan-300">One workspace</span>
+                    <p className="text-[12px] font-medium text-zinc-300">A connected team</p>
+                    <span className="text-[10px] text-zinc-500">One workspace</span>
                   </div>
 
-                  <div className="mt-5 space-y-4">
+                  <div className="mt-4 space-y-3.5">
                     {[
-                      { label: 'Projects & planning', width: 'w-[88%]', color: 'bg-cyan-300' },
-                      { label: 'Team collaboration', width: 'w-[72%]', color: 'bg-blue-400' },
-                      { label: 'Progress & updates', width: 'w-[80%]', color: 'bg-violet-400' },
+                      { label: 'Projects & planning', width: 'w-[88%]', color: 'bg-teal-500/70' },
+                      { label: 'Team collaboration', width: 'w-[72%]', color: 'bg-zinc-500/70' },
+                      { label: 'Progress & updates', width: 'w-[80%]', color: 'bg-zinc-500/50' },
                     ].map((item) => (
                       <div key={item.label}>
-                        <div className="mb-2 flex justify-between gap-3 text-xs">
-                          <span className="text-slate-300">{item.label}</span>
-                          <span className="text-slate-500">Organized</span>
+                        <div className="mb-1.5 flex justify-between gap-3 text-[11px]">
+                          <span className="text-zinc-400">{item.label}</span>
+                          <span className="text-zinc-600">Organized</span>
                         </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+                        <div className="h-1 overflow-hidden rounded-full bg-zinc-800">
                           <div className={`h-full rounded-full ${item.width} ${item.color}`} />
                         </div>
                       </div>
@@ -318,75 +302,52 @@ export default function Home() {
                   </div>
                 </div>
 
-                <p className="mt-4 text-center text-xs text-slate-500">
+                <p className="mt-4 text-center text-[10.5px] text-zinc-600">
                   A preview of the Work-Bench experience
                 </p>
-              </div>
-
-              <div
-                aria-hidden="true"
-                className="absolute -right-3 top-16 hidden rounded-2xl border border-white/10 bg-[#111c2e] p-3 shadow-xl sm:block lg:-right-7"
-              >
-                <span className="text-xl text-cyan-300">✓</span>
-                <span className="ml-2 text-sm font-medium text-white">Work, in sync</span>
               </div>
             </div>
           </div>
         </section>
 
         {/* Features */}
-        <section id="features" className="scroll-mt-24 border-y border-white/[0.06] bg-white/[0.015]">
-          <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-24 lg:px-10">
+        <section id="features" className="scroll-mt-24 border-y border-zinc-800/80 bg-[#09090b]">
+          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
             <div className="mx-auto max-w-2xl text-center">
-              <p className="text-sm font-bold uppercase tracking-[0.22em] text-cyan-300">
+              <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-teal-500/80">
                 Everything in one place
               </p>
-              <h2 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              <h2 className="mt-3 text-2xl font-light tracking-tight text-zinc-100 sm:text-3xl">
                 All your work, working together.
               </h2>
-              <p className="mt-4 leading-7 text-slate-400">
+              <p className="mt-3 text-[13.5px] leading-relaxed text-zinc-400">
                 From the first project plan to the final task, bring your everyday
                 work into one connected workspace.
               </p>
             </div>
 
-            <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:mt-16 lg:grid-cols-3">
+            <div className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {features.map((feature) => (
                 <button
                   key={feature.number}
                   type="button"
                   onClick={openFeature}
-                  className="group relative min-h-60 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0c1422] p-6 text-left transition duration-300 hover:-translate-y-1 hover:border-cyan-300/30 hover:shadow-xl hover:shadow-cyan-950/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 sm:p-7"
+                  className="group relative min-h-[180px] overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 text-left transition-colors hover:border-zinc-700"
                 >
-                  <div
-                    aria-hidden="true"
-                    className={`absolute inset-x-0 top-0 h-32 bg-gradient-to-b ${feature.color} opacity-60 transition group-hover:opacity-100`}
-                  />
-
                   <div className="relative flex items-start justify-between">
-                    <span className="grid size-12 place-items-center rounded-xl border border-white/10 bg-[#101c2c] text-2xl text-cyan-200 transition group-hover:border-cyan-300/30">
+                    <span className="grid size-9 place-items-center rounded-lg border border-zinc-800 bg-zinc-900 text-sm text-zinc-400 transition-colors group-hover:text-zinc-200">
                       {feature.icon}
                     </span>
-                    <span className="text-xs font-semibold tracking-widest text-slate-600">
+                    <span className="text-[10px] font-medium tracking-widest text-zinc-600">
                       {feature.number}
                     </span>
                   </div>
 
-                  <div className="relative mt-7">
-                    <h3 className="text-lg font-bold text-white">{feature.title}</h3>
-                    <p className="mt-3 text-sm leading-6 text-slate-400">
+                  <div className="relative mt-4">
+                    <h3 className="text-[14px] font-medium text-zinc-200">{feature.title}</h3>
+                    <p className="mt-2 text-[12px] leading-5 text-zinc-500">
                       {feature.description}
                     </p>
-                  </div>
-
-                  <div className="relative mt-5 inline-flex items-center gap-2 text-sm font-semibold text-cyan-300">
-                    {isAuthenticated ? 'Open workspace' : 'Explore with an account'}
-                    <span
-                      aria-hidden="true"
-                      className="transition-transform group-hover:translate-x-1"
-                    >
-                      →
-                    </span>
                   </div>
                 </button>
               ))}
@@ -395,29 +356,24 @@ export default function Home() {
         </section>
 
         {/* About / CTA */}
-        <section id="about" className="scroll-mt-24 px-5 py-20 sm:px-8 sm:py-24 lg:px-10">
-          <div className="relative mx-auto max-w-7xl overflow-hidden rounded-3xl border border-cyan-300/15 bg-gradient-to-br from-cyan-400/[0.10] via-[#0d1728] to-blue-500/[0.10] px-6 py-12 sm:px-12 sm:py-16 lg:px-16">
-            <div
-              aria-hidden="true"
-              className="absolute -right-16 -top-24 size-72 rounded-full bg-cyan-300/[0.08] blur-3xl"
-            />
-
+        <section id="about" className="scroll-mt-24 px-5 py-20 sm:px-8 sm:py-24">
+          <div className="relative mx-auto max-w-6xl overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/30 px-6 py-12 sm:px-12">
             <div className="relative flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
               <div className="max-w-2xl">
-                <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-300">
+                <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-teal-500/80">
                   Make room for great work
                 </p>
-                <h2 className="mt-4 text-3xl font-bold leading-tight text-white sm:text-4xl">
-                  Ready to bring your team’s work together?
+                <h2 className="mt-3 text-2xl font-light leading-tight text-zinc-100 sm:text-3xl">
+                  Ready to bring your team&apos;s work together?
                 </h2>
-                <p className="mt-4 leading-7 text-slate-400">
+                <p className="mt-3 text-[13px] leading-relaxed text-zinc-400">
                   Create your workspace and start organizing the way your team works.
                 </p>
               </div>
 
               <Link
                 to={isAuthenticated ? '/dashboard' : '/register'}
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-6 py-3.5 font-bold text-slate-950 transition hover:bg-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#080d18]"
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-zinc-100 px-5 py-2.5 text-[13px] font-medium text-zinc-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#09090b]"
               >
                 {isAuthenticated ? 'Open Dashboard' : 'Create your account'}
                 <span aria-hidden="true">→</span>
@@ -428,35 +384,35 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-white/[0.08] bg-[#060a12]">
-        <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-10">
+      <footer className="border-t border-zinc-800/80 bg-[#09090b]">
+        <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
           <div className="flex flex-col gap-8 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <Brand />
-              <p className="mt-3 max-w-sm text-sm leading-6 text-slate-500">
+              <p className="mt-3 max-w-sm text-[11.5px] leading-relaxed text-zinc-500">
                 A clearer workspace for better projects, focused tasks, and stronger teams.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-400">
-              <Link to="/" className="transition hover:text-cyan-300">Home</Link>
-              <a href="#features" className="transition hover:text-cyan-300">Features</a>
-              <a href="#about" className="transition hover:text-cyan-300">About</a>
+            <div className="flex flex-wrap gap-x-6 gap-y-3 text-[12px] text-zinc-400">
+              <Link to="/" className="transition hover:text-zinc-200">Home</Link>
+              <a href="#features" className="transition hover:text-zinc-200">Features</a>
+              <a href="#about" className="transition hover:text-zinc-200">About</a>
               {!isAuthenticated && (
                 <>
-                  <Link to="/login" className="transition hover:text-cyan-300">Log in</Link>
-                  <Link to="/register" className="transition hover:text-cyan-300">Create account</Link>
+                  <Link to="/login" className="transition hover:text-zinc-200">Log in</Link>
+                  <Link to="/register" className="transition hover:text-zinc-200">Create account</Link>
                 </>
               )}
               {isAuthenticated && (
-                <Link to="/dashboard" className="transition hover:text-cyan-300">
+                <Link to="/dashboard" className="transition hover:text-zinc-200">
                   Dashboard
                 </Link>
               )}
             </div>
           </div>
 
-          <div className="mt-8 border-t border-white/[0.07] pt-6 text-xs text-slate-600 sm:flex sm:items-center sm:justify-between">
+          <div className="mt-8 border-t border-zinc-800/80 pt-6 text-[11px] text-zinc-600 sm:flex sm:items-center sm:justify-between">
             <p>© {new Date().getFullYear()} Work-Bench. All rights reserved.</p>
             <p className="mt-2 sm:mt-0">Built for teams that move work forward.</p>
           </div>
