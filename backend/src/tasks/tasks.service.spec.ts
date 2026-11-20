@@ -12,6 +12,7 @@ import {
 } from './dto/task-query.input.js';
 import {
   Role,
+  Prisma,
   TaskPriority,
   TaskStatus,
 } from '@prisma/client';
@@ -103,6 +104,9 @@ function setup(role: Role | null = Role.ADMIN) {
         projectId: PROJECT,
         title: 'Prepare report',
         status: TaskStatus.TODO,
+        description: null,
+        priority: TaskPriority.MEDIUM,
+        dueDate: null,
         assigneeId: ASSIGNEE,
       }),
 
@@ -395,6 +399,9 @@ describe('TasksService', () => {
         projectId: PROJECT,
         title: 'Prepare report',
         status: TaskStatus.TODO,
+        description: null,
+        priority: TaskPriority.MEDIUM,
+        dueDate: null,
         assigneeId: ASSIGNEE,
       });
 
@@ -881,9 +888,22 @@ describe('TasksService', () => {
       await service.update(USER, updateInput);
 
       expect(tx.task.update).toHaveBeenCalledWith({
-        where: { id: TASK },
+        where: expect.objectContaining({ id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null, title: 'Prepare report' }),
         data: { title: 'Updated report' },
       });
+    });
+
+    it('rejects a stale detail write before creating activity or outbox events', async () => {
+      const { service, tx, notificationsService } = setup();
+      tx.task.update.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError(
+        'Record did not match the expected values', { code: 'P2025', clientVersion: '6.19.3' },
+      ));
+
+      await expect(service.update(USER, { organizationId: ORG, taskId: TASK, title: 'New title', assigneeId: 'assignee-2' }))
+        .rejects.toThrow('Concurrent update detected, please retry');
+      expect(tx.taskActivity.create).not.toHaveBeenCalled();
+      expect(notificationsService.createForRecipient).not.toHaveBeenCalled();
+      expect(tx.outboxEvent.create).not.toHaveBeenCalled();
     });
 
     it('rejects updating a task in an archived project', async () => {
@@ -914,7 +934,7 @@ describe('TasksService', () => {
       });
 
       expect(tx.task.update).toHaveBeenCalledWith({
-        where: { id: TASK },
+        where: expect.objectContaining({ id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null, assigneeId: ASSIGNEE }),
         data: {
           description: null,
           assigneeId: null,
@@ -929,7 +949,7 @@ describe('TasksService', () => {
       await service.update(USER, updateInput);
 
       expect(tx.task.update).toHaveBeenCalledWith({
-        where: { id: TASK },
+        where: expect.objectContaining({ id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null, title: 'Prepare report' }),
         data: { title: 'Updated report' },
       });
     });
@@ -1053,7 +1073,7 @@ describe('TasksService', () => {
       });
 
       expect(tx.task.update).toHaveBeenCalledWith({
-        where: { id: TASK },
+        where: expect.objectContaining({ id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null, assigneeId: ASSIGNEE }),
         data: { assigneeId: ASSIGNEE },
       });
     });
@@ -1107,9 +1127,22 @@ describe('TasksService', () => {
       await service.assign(USER, assignInput);
 
       expect(tx.task.update).toHaveBeenCalledWith({
-        where: { id: TASK },
+        where: expect.objectContaining({ id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null, assigneeId: ASSIGNEE }),
         data: { assigneeId: ASSIGNEE },
       });
+    });
+
+    it('rejects a stale assignment before creating activity or notification effects', async () => {
+      const { service, tx, notificationsService } = setup();
+      tx.task.update.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError(
+        'Record did not match the expected assignee', { code: 'P2025', clientVersion: '6.19.3' },
+      ));
+
+      await expect(service.assign(USER, { ...assignInput, assigneeId: 'assignee-2' }))
+        .rejects.toThrow('Concurrent update detected, please retry');
+      expect(tx.taskActivity.create).not.toHaveBeenCalled();
+      expect(notificationsService.createForRecipient).not.toHaveBeenCalled();
+      expect(tx.outboxEvent.create).not.toHaveBeenCalled();
     });
 
     it('notifies the new assignee when assigning a task', async () => {
@@ -1133,6 +1166,20 @@ describe('TasksService', () => {
       );
     });
 
+    it('uses unique outbox event IDs for distinct assignments in the same millisecond', async () => {
+      const { service, tx } = setup();
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(1000);
+      try {
+        await service.assign(USER, { ...assignInput, assigneeId: 'assignee-2' });
+        await service.assign(USER, { ...assignInput, assigneeId: 'assignee-3' });
+      } finally {
+        clock.mockRestore();
+      }
+      const eventIds = tx.outboxEvent.create.mock.calls.map(([argument]) => argument.data.payload.eventId);
+      expect(eventIds).toHaveLength(2);
+      expect(new Set(eventIds).size).toBe(2);
+    });
+
     it('does not notify when assigning the task to the existing assignee', async () => {
       const { service, notificationsService } = setup();
 
@@ -1147,7 +1194,7 @@ describe('TasksService', () => {
       await service.assign(USER, assignInput);
 
       expect(tx.task.update).toHaveBeenCalledWith({
-        where: { id: TASK },
+        where: expect.objectContaining({ id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null, assigneeId: ASSIGNEE }),
         data: { assigneeId: ASSIGNEE },
       });
     });
@@ -1167,7 +1214,7 @@ describe('TasksService', () => {
       prisma.projectMember.findUnique.mockResolvedValue({ organizationId: ORG, orgMember: { role: Role.MANAGER } });
 
       await service.assign(USER, { ...assignInput, assigneeId: 'manager-1' });
-      expect(tx.task.update).toHaveBeenCalledWith({ where: { id: TASK }, data: { assigneeId: 'manager-1' } });
+      expect(tx.task.update).toHaveBeenCalledWith({ where: expect.objectContaining({ id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null, assigneeId: ASSIGNEE }), data: { assigneeId: 'manager-1' } });
     });
 
     it.each([ASSIGNEE, 'admin-1', 'manager-1', 'employee-2', null])(
@@ -1240,7 +1287,7 @@ describe('TasksService', () => {
       });
 
       expect(tx.task.update).toHaveBeenCalledWith({
-        where: { id: TASK },
+        where: expect.objectContaining({ id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null, assigneeId: ASSIGNEE }),
         data: { assigneeId: null },
       });
 

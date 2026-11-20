@@ -42,6 +42,12 @@ bash staging/stage.sh invitation-e2e --approve-local-target
 node staging/validate-frontend-graphql.mjs
 node staging/functional-qa.e2e.mjs
 node staging/browser-smoke.mjs
+node staging/performance-benchmark.mjs seed
+node staging/performance-benchmark.mjs grow
+node staging/performance-benchmark.mjs spread
+node staging/performance-benchmark.mjs plan
+node staging/performance-benchmark.mjs measure
+node staging/reliability-qa.mjs
 ```
 
 `status` may exit nonzero while migrations are pending. On a brand-new empty
@@ -80,6 +86,14 @@ staging account, and add/remove a dependency in Task Details. It also checks
 the login button cursor and verifies that a comment from a second user raises
 the recipient's notification indicator without a page refresh. Its fixture
 records remain in staging.
+`performance-benchmark.mjs` creates a dedicated synthetic organization and an
+owner-only ignored fixture manifest. Run `seed`, `grow`, and `spread` once, in
+that order, to create 14,500 tasks across 20 projects. `plan` prints read-only
+PostgreSQL execution plans, while `measure` reports paced API p50/p95 latency;
+set `TASKFORGE_BENCH_SAMPLES` to an even value from 20 through 100 when needed.
+`reliability-qa.mjs` uses that fixture to stop and restart only the local worker
+and Redis, verifying that committed outbox events survive both outages and are
+published after recovery.
 The staging Nginx configuration disables access logs so invitation tokens in
 the URL are not written there.
 

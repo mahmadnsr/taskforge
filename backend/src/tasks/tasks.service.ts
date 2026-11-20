@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { NotificationType, Prisma, Role, TaskPriority, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -514,10 +515,23 @@ export class TasksService {
       input.assigneeId !== task.assigneeId;
 
     const updatedTask = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const updatedTask = await tx.task.update({
-        where: { id: taskId },
-        data,
-      });
+      const expected: Prisma.TaskWhereUniqueInput = {
+        id: taskId, organizationId, projectId: task.projectId, deletedAt: null,
+        ...(data.title !== undefined && { title: task.title }),
+        ...(data.description !== undefined && { description: task.description }),
+        ...(data.priority !== undefined && { priority: task.priority }),
+        ...(data.assigneeId !== undefined && { assigneeId: task.assigneeId }),
+        ...(data.dueDate !== undefined && { dueDate: task.dueDate }),
+      };
+      let updatedTask;
+      try {
+        updatedTask = await tx.task.update({ where: expected, data });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+          throw new ConflictException('Concurrent update detected, please retry');
+        }
+        throw error;
+      }
 
       const isSubtask = Boolean((task as typeof task & { parentId?: string | null }).parentId);
       const changedFields = [
@@ -554,7 +568,7 @@ export class TasksService {
           data: {
             eventType: 'TASK_ASSIGNED',
             payload: {
-              eventId: `assigned-${updatedTask.id}-${Date.now()}`,
+              eventId: `assigned-${updatedTask.id}-${randomUUID()}`,
               organizationId,
               taskId: updatedTask.id,
               actorId: userId,
@@ -613,12 +627,18 @@ export class TasksService {
     const assigneeChanged = normalizedAssigneeId !== task.assigneeId;
 
     const updatedTask = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const updatedTask = await tx.task.update({
-        where: { id: taskId },
-        data: {
-          assigneeId: normalizedAssigneeId,
-        },
-      });
+      let updatedTask;
+      try {
+        updatedTask = await tx.task.update({
+          where: { id: taskId, organizationId, projectId: task.projectId, deletedAt: null, assigneeId: task.assigneeId },
+          data: { assigneeId: normalizedAssigneeId },
+        });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+          throw new ConflictException('Concurrent update detected, please retry');
+        }
+        throw error;
+      }
 
       if (assigneeChanged) await this.recordActivity(tx, taskId, organizationId, userId,
         (task as typeof task & { parentId?: string | null }).parentId ? 'SUBTASK_ASSIGNED' : 'TASK_ASSIGNED',
@@ -645,7 +665,7 @@ export class TasksService {
           data: {
             eventType: 'TASK_ASSIGNED',
             payload: {
-              eventId: `assigned-${updatedTask.id}-${Date.now()}`,
+              eventId: `assigned-${updatedTask.id}-${randomUUID()}`,
               organizationId,
               taskId: updatedTask.id,
               actorId: userId,
@@ -767,7 +787,7 @@ export class TasksService {
         data: {
           eventType: 'TASK_STATUS_CHANGED',
           payload: {
-            eventId: `status-${updatedTask.id}-${Date.now()}`,
+            eventId: `status-${updatedTask.id}-${randomUUID()}`,
             organizationId,
             taskId: updatedTask.id,
             actorId: userId,

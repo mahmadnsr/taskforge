@@ -253,6 +253,7 @@ model Task {
   @@unique([id, organizationId])
   @@unique([id, organizationId, projectId])
   @@index([projectId, status])
+  @@index([organizationId, projectId, createdAt(sort: Desc), id, deletedAt], map: "Task_live_project_createdAt_id_idx")
   @@index([projectId, priority])
   @@index([createdById])
   @@index([assigneeId])
