@@ -159,6 +159,34 @@ export function validateEnv(config: Record<string, unknown>) {
     errors.push('REDIS_TLS must be either true or false');
   }
 
+  // Trusted proxy — only set when running behind a trusted reverse proxy.
+  // Accepts: loopback, 127.0.0.1, ::ffff:127.0.0.1, or a comma-separated
+  // list of IP addresses/CIDR ranges. Never wildcard ('*') or 'true'
+  // (Express interprets 'true' as trusting every proxy hop).
+  const trustProxy = config.TRUST_PROXY;
+
+  if (trustProxy !== undefined) {
+    const raw = String(trustProxy).trim();
+
+    if (raw === '') {
+      errors.push('TRUST_PROXY must not be empty when provided');
+    } else if (
+      raw !== 'loopback' &&
+      raw !== '127.0.0.1' &&
+      raw !== '::ffff:127.0.0.1' &&
+      !raw.split(',').every((part) => {
+        const p = part.trim();
+        if (p === '' || p === '*') return false;
+        // Allow IP addresses and CIDR ranges (simple validation).
+        return /^[\d.a-fA-F:./]+$/.test(p);
+      })
+    ) {
+      errors.push(
+        'TRUST_PROXY must be loopback, 127.0.0.1, ::ffff:127.0.0.1, or a comma-separated list of IP addresses/CIDR ranges',
+      );
+    }
+  }
+
   // Node environment
   const nodeEnv = config.NODE_ENV;
 

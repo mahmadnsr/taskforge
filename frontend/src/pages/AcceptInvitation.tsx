@@ -35,6 +35,7 @@ export default function AcceptInvitation() {
 
   const [token, setToken] = useState(searchParams.get('token') ?? '')
   const [error, setError] = useState('')
+  const [tokenError, setTokenError] = useState('')
   const [organization, setOrganization] = useState<Organization | null>(null)
 
   const [acceptInvitation, { loading }] = useMutation<
@@ -50,9 +51,10 @@ export default function AcceptInvitation() {
     const normalizedToken = token.trim()
 
     if (!normalizedToken || normalizedToken.length > 128) {
-      setError('Enter a valid invitation token.')
+      setTokenError('Paste a valid invitation token (maximum 128 characters).')
       return
     }
+    setTokenError('')
 
     try {
       const result = await acceptInvitation({
@@ -138,6 +140,7 @@ export default function AcceptInvitation() {
                   value={token}
                   onChange={(event) => {
                     setToken(event.target.value)
+                    setTokenError('')
                     setError('')
                   }}
                   required
@@ -146,10 +149,11 @@ export default function AcceptInvitation() {
                   spellCheck={false}
                   autoComplete="off"
                   placeholder="Paste your invitation token"
-                  aria-invalid={Boolean(error)}
-                  aria-describedby={error ? 'invitation-error' : undefined}
-                  className="w-full resize-y rounded-xl border border-white/10 bg-[#0c1322] px-4 py-3 font-mono text-sm text-white placeholder:font-sans placeholder:text-slate-600 outline-none focus:border-cyan-400"
+                  aria-invalid={Boolean(tokenError)}
+                  aria-describedby={tokenError ? 'invitation-error' : undefined}
+                  className={`w-full resize-y rounded-xl border ${tokenError ? 'border-rose-500 focus:border-rose-500' : 'border-white/10 focus:border-cyan-400'} bg-[#0c1322] px-4 py-3 font-mono text-sm text-white placeholder:font-sans placeholder:text-slate-600 outline-none focus:border-cyan-400`}
                 />
+                {tokenError && <p id="invitation-error" role="alert" className="mt-2 text-xs leading-5 text-rose-400">{tokenError}</p>}
               </div>
 
               {error && (
@@ -171,6 +175,18 @@ export default function AcceptInvitation() {
                 {loading ? 'Accepting invitation…' : 'Accept invitation'}
               </button>
             </form>
+          )}
+
+          {!organization && (
+            <p className="mt-6 text-center text-sm text-slate-400">
+              New to Work-Bench?{' '}
+              <Link
+                to={`/register?token=${encodeURIComponent(token.trim())}`}
+                className="font-semibold text-cyan-400 hover:text-cyan-300"
+              >
+                Create account
+              </Link>
+            </p>
           )}
 
           <p className="mt-6 text-center text-sm text-slate-500">

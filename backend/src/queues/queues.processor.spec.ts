@@ -21,6 +21,7 @@ const createReminder = (overrides: Record<string, unknown> = {}) => {
       dueDate,
       assigneeId: 'user-1',
       status: TaskStatus.TODO,
+      deletedAt: null,
     },
     recipient: {
       email: 'user@example.com',
@@ -142,7 +143,7 @@ describe('QueuesProcessor', () => {
   });
 
   it('sends normal email jobs through EmailService', async () => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const log = vi.spyOn(processor['logger'], 'log').mockImplementation(() => {});
 
     await processor.process({
       id: 'email-1',
@@ -162,7 +163,7 @@ describe('QueuesProcessor', () => {
     });
 
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('Email sent job=email-1'),
+      'Email sent successfully. job=email-1',
     );
 
     expect(prisma.taskReminder.updateMany).not.toHaveBeenCalled();
@@ -190,7 +191,7 @@ describe('QueuesProcessor', () => {
   });
 
   it('sends a reminder after successfully claiming it', async () => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const log = vi.spyOn(processor['logger'], 'log').mockImplementation(() => {});
 
     mockReminderFlow();
 
@@ -253,7 +254,7 @@ describe('QueuesProcessor', () => {
     );
 
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('Email sent job=email-reminder-1'),
+      'Email sent successfully. job=email-reminder-1',
     );
 
     log.mockRestore();
@@ -361,6 +362,33 @@ describe('QueuesProcessor', () => {
     expect(emailService.send).not.toHaveBeenCalled();
     expect(prisma.taskReminder.updateMany).toHaveBeenCalledTimes(1);
     expect(prisma.taskReminder.findUnique).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips a reminder for a soft-deleted task', async () => {
+    mockReminderFlow({
+      task: {
+        organizationId: 'org-1',
+        dueDate: new Date('2026-10-27T12:00:00.000Z'),
+        assigneeId: 'user-1',
+        status: TaskStatus.TODO,
+        deletedAt: new Date('2026-10-27T11:00:00.000Z'),
+      },
+    });
+
+    await processor.process({
+      id: 'email-reminder-deleted',
+      name: 'send-email',
+      data: {
+        to: 'user@example.com',
+        subject: 'Task reminder',
+        text: 'Your task is due soon',
+        idempotencyKey: 'deadline-reminder-1',
+        reminderId: 'reminder-1',
+      },
+    } as Job);
+
+    expect(emailService.send).not.toHaveBeenCalled();
+    expect(prisma.taskReminder.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: TaskReminderStatus.SKIPPED }) }));
   });
 
   it('sends only one reminder email when two processing attempts overlap', async () => {

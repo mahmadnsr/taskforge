@@ -31,6 +31,7 @@ const TASK = 'task-1';
 
 function setup(role: Role | null = Role.ADMIN) {
   const tx = {
+    taskActivity: { create: vi.fn().mockResolvedValue({ id: 'activity-1' }), findMany: vi.fn().mockResolvedValue([]) },
     task: {
       create: vi.fn().mockImplementation(async ({ data }) => ({
         id: TASK,
@@ -43,6 +44,9 @@ function setup(role: Role | null = Role.ADMIN) {
         title: 'Prepare report',
         ...data,
       })),
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     organizationMember: {
       findUnique: vi.fn().mockResolvedValue({ userId: USER }),
@@ -60,6 +64,9 @@ function setup(role: Role | null = Role.ADMIN) {
 
   const prisma = {
     $transaction: vi.fn(async (callback) => callback(tx)),
+    taskActivity: { findMany: vi.fn().mockResolvedValue([]) },
+    user: { findMany: vi.fn().mockResolvedValue([]) },
+
     organizationMember: {
       findUnique: vi
         .fn()
@@ -67,6 +74,7 @@ function setup(role: Role | null = Role.ADMIN) {
           role ? { userId: USER, organizationId: ORG, role } : null,
         ),
     },
+
     project: {
       findUnique: vi.fn().mockResolvedValue({
         id: PROJECT,
@@ -74,14 +82,17 @@ function setup(role: Role | null = Role.ADMIN) {
         status: 'ACTIVE',
       }),
     },
+
     projectMember: {
       findUnique: vi.fn().mockResolvedValue({ id: 'membership-1' }),
     },
+
     task: {
       create: vi.fn().mockImplementation(async ({ data }) => ({
         id: TASK,
         ...data,
       })),
+
       findFirst: vi.fn().mockResolvedValue({
         id: TASK,
         organizationId: ORG,
@@ -90,14 +101,19 @@ function setup(role: Role | null = Role.ADMIN) {
         status: TaskStatus.TODO,
         assigneeId: ASSIGNEE,
       }),
+
       findMany: vi.fn().mockResolvedValue([]),
+
       count: vi.fn().mockResolvedValue(0),
+
       update: vi.fn().mockImplementation(async ({ where, data }) => ({
         id: where.id,
         organizationId: ORG,
         projectId: PROJECT,
         ...data,
       })),
+
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
   };
 
@@ -261,13 +277,24 @@ describe('TasksService', () => {
       expect(tx.task.create).toHaveBeenCalled();
     });
 
-    it('allows a MANAGER to create a task', async () => {
-      const { service, prisma , tx } = setup(Role.MANAGER);
+    it('allows a MANAGER who belongs to the project to create a task', async () => {
+      const { service, prisma, tx } = setup(Role.MANAGER);
 
       await service.create(USER, input);
 
       expect(tx.task.create).toHaveBeenCalled();
-      expect(prisma.projectMember.findUnique).not.toHaveBeenCalled();
+      expect(prisma.projectMember.findUnique).toHaveBeenCalled();
+    });
+
+    it('rejects a MANAGER who does not belong to the project', async () => {
+      const { service, prisma, tx } = setup(Role.MANAGER);
+      prisma.projectMember.findUnique.mockResolvedValue(null);
+
+      await expect(service.create(USER, input)).rejects.toThrow(
+        'You must be a project member to create tasks',
+      );
+
+      expect(tx.task.create).not.toHaveBeenCalled();
     });
 
     it('rejects an assignee who is not a project member', async () => {
@@ -326,6 +353,7 @@ describe('TasksService', () => {
       expect(prisma.task.create).not.toHaveBeenCalled();
     });
   });
+
   describe('get', () => {
     it('rejects a user who is not an organization member', async () => {
       const { service, prisma } = setup(null);
@@ -353,6 +381,7 @@ describe('TasksService', () => {
         where: {
           id: TASK,
           organizationId: ORG,
+          deletedAt: null,
         },
       });
     });
@@ -423,6 +452,7 @@ describe('TasksService', () => {
         where: {
           id: TASK,
           organizationId: OTHER_ORG,
+          deletedAt: null,
         },
       });
     });
@@ -470,6 +500,7 @@ describe('TasksService', () => {
         where: {
           organizationId: ORG,
           projectId: PROJECT,
+          deletedAt: null,
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -490,6 +521,7 @@ describe('TasksService', () => {
         where: {
           organizationId: ORG,
           projectId: PROJECT,
+          deletedAt: null,
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -515,13 +547,24 @@ describe('TasksService', () => {
       expect(prisma.task.findMany).toHaveBeenCalled();
     });
 
-    it('allows a MANAGER to list project tasks', async () => {
+    it('allows a MANAGER who belongs to the project to list tasks', async () => {
       const { service, prisma } = setup(Role.MANAGER);
 
       await service.listByProject(USER, ORG, PROJECT);
 
       expect(prisma.task.findMany).toHaveBeenCalled();
-      expect(prisma.projectMember.findUnique).not.toHaveBeenCalled();
+      expect(prisma.projectMember.findUnique).toHaveBeenCalled();
+    });
+
+    it('rejects a MANAGER who does not belong to the project', async () => {
+      const { service, prisma } = setup(Role.MANAGER);
+      prisma.projectMember.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.listByProject(USER, ORG, PROJECT),
+      ).rejects.toThrow('You must be a project member to view project tasks');
+
+      expect(prisma.task.findMany).not.toHaveBeenCalled();
     });
   });
 
@@ -548,6 +591,7 @@ describe('TasksService', () => {
         where: {
           organizationId: ORG,
           projectId: PROJECT,
+          deletedAt: null,
         },
         orderBy: [{ createdAt: SortDirection.DESC }, { id: 'asc' }],
         take: 20,
@@ -558,6 +602,7 @@ describe('TasksService', () => {
         where: {
           organizationId: ORG,
           projectId: PROJECT,
+          deletedAt: null,
         },
       });
     });
@@ -581,6 +626,7 @@ describe('TasksService', () => {
       const expectedWhere = {
         organizationId: ORG,
         projectId: PROJECT,
+        deletedAt: null,
         status: TaskStatus.IN_PROGRESS,
         priority: TaskPriority.HIGH,
         assigneeId: ASSIGNEE,
@@ -778,14 +824,26 @@ describe('TasksService', () => {
       expect(prisma.task.findMany).not.toHaveBeenCalled();
     });
 
-    it('allows a MANAGER without project membership lookup', async () => {
+    it('allows a MANAGER who belongs to the project to search tasks', async () => {
       const { service, prisma } = setup(Role.MANAGER);
 
       await service.searchProjectTasks(USER, ORG, PROJECT);
 
       expect(prisma.task.findMany).toHaveBeenCalled();
       expect(prisma.task.count).toHaveBeenCalled();
-      expect(prisma.projectMember.findUnique).not.toHaveBeenCalled();
+      expect(prisma.projectMember.findUnique).toHaveBeenCalled();
+    });
+
+    it('rejects a MANAGER who does not belong to the project', async () => {
+      const { service, prisma } = setup(Role.MANAGER);
+      prisma.projectMember.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.searchProjectTasks(USER, ORG, PROJECT),
+      ).rejects.toThrow('You must be a project member to view project tasks');
+
+      expect(prisma.task.findMany).not.toHaveBeenCalled();
+      expect(prisma.task.count).not.toHaveBeenCalled();
     });
   });
 
@@ -892,6 +950,7 @@ describe('TasksService', () => {
         where: {
           id: TASK,
           organizationId: OTHER_ORG,
+          deletedAt: null,
         },
       });
 
@@ -1413,7 +1472,7 @@ describe('TasksService', () => {
       });
     });
 
-    it('allows a MANAGER to change task status', async () => {
+    it('allows a MANAGER who belongs to the project to change task status', async () => {
       const { service, prisma, tx } = setup(Role.MANAGER);
 
       await service.changeStatus(USER, statusInput);
@@ -1423,7 +1482,18 @@ describe('TasksService', () => {
         data: { status: TaskStatus.IN_PROGRESS },
       });
 
-      expect(prisma.projectMember.findUnique).not.toHaveBeenCalled();
+      expect(prisma.projectMember.findUnique).toHaveBeenCalled();
+    });
+
+    it('rejects a MANAGER who does not belong to the project', async () => {
+      const { service, prisma, tx } = setup(Role.MANAGER);
+      prisma.projectMember.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.changeStatus(USER, statusInput),
+      ).rejects.toThrow('You must be a project member to view project tasks');
+
+      expect(tx.task.update).not.toHaveBeenCalled();
     });
 
     it('does not change a task belonging to another organization', async () => {
@@ -1441,10 +1511,194 @@ describe('TasksService', () => {
         where: {
           id: TASK,
           organizationId: OTHER_ORG,
+          deletedAt: null,
         },
       });
 
       expect(tx.task.update).not.toHaveBeenCalled();
     });
+  });
+
+  describe('deleteTask', () => {
+    it('soft-deletes a root and its children with activity in one transaction', async () => {
+      const { service, prisma, tx } = setup(Role.ADMIN);
+      tx.task.findMany.mockResolvedValue([{ id: 'child-1' }]);
+
+      await expect(service.deleteTask(USER, ORG, TASK)).resolves.toBe(true);
+
+      expect(tx.task.updateMany).toHaveBeenCalledTimes(2);
+      expect(tx.task.updateMany).toHaveBeenNthCalledWith(1, {
+        where: { id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null },
+        data: { deletedAt: expect.any(Date) },
+      });
+      expect(tx.task.updateMany).toHaveBeenNthCalledWith(2, {
+        where: { id: 'child-1', parentId: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null },
+        data: { deletedAt: expect.any(Date) },
+      });
+      expect(tx.taskActivity.create).toHaveBeenCalledWith({ data: expect.objectContaining({ taskId: 'child-1', type: 'SUBTASK_DELETED' }) });
+      expect(tx.taskActivity.create).toHaveBeenCalledWith({ data: expect.objectContaining({ taskId: TASK, type: 'SUBTASK_DELETED', details: { subtaskId: 'child-1' } }) });
+      expect(tx.taskActivity.create).toHaveBeenCalledWith({ data: expect.objectContaining({ taskId: TASK, type: 'TASK_DELETED' }) });
+      expect(prisma.task.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('allows a MANAGER to soft-delete a task', async () => {
+      const { service, tx } = setup(Role.MANAGER);
+
+      await expect(service.deleteTask(USER, ORG, TASK)).resolves.toBe(true);
+
+      expect(tx.task.updateMany).toHaveBeenCalledOnce();
+    });
+
+    it('does not duplicate child deletion activity after a concurrent child deletion', async () => {
+      const { service, tx } = setup();
+      tx.task.findMany.mockResolvedValue([{ id: 'child-1' }]);
+      tx.task.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+
+      await service.deleteTask(USER, ORG, TASK);
+
+      expect(tx.taskActivity.create.mock.calls.map(([call]) => call.data.type)).toEqual(['TASK_DELETED']);
+    });
+
+    it('rejects EMPLOYEE task deletion', async () => {
+      const { service, prisma } = setup(Role.EMPLOYEE);
+
+      await expect(
+        service.deleteTask(USER, ORG, TASK),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(prisma.task.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects deletion by a user who is not an organization member', async () => {
+      const { service, prisma } = setup(null);
+
+      await expect(
+        service.deleteTask(USER, ORG, TASK),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(prisma.task.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects a task that does not exist in the organization', async () => {
+      const { service, prisma } = setup();
+
+      prisma.task.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.deleteTask(USER, OTHER_ORG, TASK),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(prisma.task.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects deletion when the project is archived', async () => {
+      const { service, prisma } = setup();
+
+      prisma.project.findUnique.mockResolvedValue({
+        id: PROJECT,
+        organizationId: ORG,
+        status: 'ARCHIVED',
+      });
+
+      await expect(
+        service.deleteTask(USER, ORG, TASK),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prisma.task.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('handles a task deleted concurrently', async () => {
+      const { service, tx } = setup();
+
+      tx.task.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      await expect(
+        service.deleteTask(USER, ORG, TASK),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('propagates activity insertion failure inside the delete transaction', async () => {
+      const { service, prisma, tx } = setup();
+      tx.taskActivity.create.mockRejectedValueOnce(new Error('activity insert failed'));
+
+      await expect(service.deleteTask(USER, ORG, TASK)).rejects.toThrow('activity insert failed');
+      expect(prisma.$transaction).toHaveBeenCalledOnce();
+      expect(tx.task.updateMany).toHaveBeenCalled();
+      expect(prisma.task.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('task activity recording and history', () => {
+  it('records creation in the same transaction as the outbox', async () => {
+    const { service, tx, prisma } = setup();
+    await service.create(USER, input);
+    expect(prisma.$transaction).toHaveBeenCalledOnce();
+    expect(tx.taskActivity.create).toHaveBeenCalledWith({ data: expect.objectContaining({ taskId: TASK, organizationId: ORG, actorId: USER, type: 'TASK_CREATED' }) });
+    expect(tx.outboxEvent.create).toHaveBeenCalledOnce();
+  });
+
+  it('records priority, deadline and assignment changes without descriptions', async () => {
+    const { service, tx, prisma } = setup();
+    prisma.task.findFirst.mockResolvedValue({ id: TASK, organizationId: ORG, projectId: PROJECT, title: 'Prepare report', description: null, priority: TaskPriority.LOW, dueDate: null, assigneeId: ASSIGNEE });
+    await service.update(USER, { organizationId: ORG, taskId: TASK, priority: TaskPriority.HIGH, dueDate: new Date('2026-12-01T00:00:00Z'), assigneeId: null, description: 'private notes' });
+    const events = tx.taskActivity.create.mock.calls.map(([call]) => call.data);
+    expect(events.map((event) => event.type)).toEqual(['TASK_UPDATED', 'TASK_PRIORITY_CHANGED', 'TASK_DEADLINE_CHANGED', 'TASK_ASSIGNED']);
+    expect(events.find((event) => event.type === 'TASK_PRIORITY_CHANGED').details).toEqual({ old: 'LOW', new: 'HIGH' });
+    expect(JSON.stringify(events)).not.toContain('private notes');
+  });
+
+  it('does not record unchanged task values or assignment', async () => {
+    const { service, tx, prisma } = setup();
+    prisma.task.findFirst.mockResolvedValue({ id: TASK, organizationId: ORG, projectId: PROJECT, title: 'Prepare report', description: null, priority: TaskPriority.MEDIUM, dueDate: null, assigneeId: ASSIGNEE });
+    await service.update(USER, { organizationId: ORG, taskId: TASK, title: 'Prepare report', priority: TaskPriority.MEDIUM });
+    await service.assign(USER, { organizationId: ORG, taskId: TASK, assigneeId: ASSIGNEE });
+    expect(tx.taskActivity.create).not.toHaveBeenCalled();
+  });
+
+  it('records status and preserves notification/outbox writes', async () => {
+    const { service, tx } = setup();
+    await service.changeStatus('other-user', { organizationId: ORG, taskId: TASK, status: TaskStatus.IN_PROGRESS });
+    expect(tx.taskActivity.create).toHaveBeenCalledWith({ data: expect.objectContaining({ type: 'TASK_STATUS_CHANGED', details: { old: 'TODO', new: 'IN_PROGRESS' } }) });
+    expect(tx.outboxEvent.create).toHaveBeenCalledOnce();
+  });
+
+  it('aborts before publishing the outbox if activity insertion fails', async () => {
+    const { service, tx } = setup();
+    tx.taskActivity.create.mockRejectedValueOnce(new Error('activity insert failed'));
+    await expect(service.create(USER, input)).rejects.toThrow('activity insert failed');
+    expect(tx.outboxEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('paginates by timestamp and ID and rejects unauthorized or other-organization reads', async () => {
+    const { service, prisma } = setup(Role.MANAGER);
+    const date = new Date('2026-11-20T00:00:00Z');
+    prisma.taskActivity.findMany.mockResolvedValueOnce([
+      { id: 'b', taskId: TASK, organizationId: ORG, actorId: USER, type: 'TASK_CREATED', details: {}, createdAt: date },
+      { id: 'a', taskId: TASK, organizationId: ORG, actorId: USER, type: 'TASK_UPDATED', details: {}, createdAt: date },
+    ]);
+    prisma.user.findMany.mockResolvedValue([{ id: USER, name: 'Member' }]);
+    const page = await service.activityHistory(USER, { organizationId: ORG, taskId: TASK, first: 1 });
+    expect(page).toMatchObject({ hasMore: true, items: [{ actorName: 'Member', details: '{}' }] });
+    expect(page.nextCursor).toBeTruthy();
+    await service.activityHistory(USER, { organizationId: ORG, taskId: TASK, first: 1, after: page.nextCursor! });
+    expect(prisma.taskActivity.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: expect.objectContaining({ organizationId: ORG, taskId: TASK, OR: expect.any(Array) }), orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }));
+    prisma.projectMember.findUnique.mockResolvedValue(null);
+    await expect(service.activityHistory(USER, { organizationId: ORG, taskId: TASK })).rejects.toBeInstanceOf(ForbiddenException);
+    prisma.taskActivity.findMany.mockClear();
+    prisma.task.findFirst.mockResolvedValue(null);
+    await expect(service.activityHistory(USER, { organizationId: OTHER_ORG, taskId: TASK })).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.taskActivity.findMany).not.toHaveBeenCalled();
+  });
+
+  it('allows authorized history access after soft deletion while hiding normal task details', async () => {
+    const { service, prisma } = setup(Role.MANAGER);
+    prisma.task.findFirst.mockImplementation(async ({ where }) => where.deletedAt === null ? null : { id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: new Date() });
+
+    await expect(service.get(USER, ORG, TASK)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.activityHistory(USER, { organizationId: ORG, taskId: TASK })).resolves.toMatchObject({ items: [] });
+    expect(prisma.taskActivity.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ taskId: TASK, organizationId: ORG }) }));
+    prisma.projectMember.findUnique.mockResolvedValue(null);
+    await expect(service.activityHistory(USER, { organizationId: ORG, taskId: TASK })).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

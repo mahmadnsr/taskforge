@@ -1,4 +1,4 @@
-name: Backend CI
+name: CI
 
 on:
   push:
@@ -13,13 +13,9 @@ permissions:
   contents: read
 
 jobs:
-  validate:
-    name: Lint, Test and Build
+  backend:
+    name: Backend
     runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: backend
 
     steps:
       - name: Checkout repository
@@ -37,20 +33,65 @@ jobs:
           cache: pnpm
           cache-dependency-path: backend/pnpm-lock.yaml
 
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: pnpm install --frozen-lockfile
+        working-directory: backend
 
       - name: Generate Prisma Client
         run: pnpm exec prisma generate
+        working-directory: backend
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/taskforge_ci
           DATABASE_URL_UNPOOLED: postgresql://ci:ci@localhost:5432/taskforge_ci
 
-      - name: Run lint
+      - name: Run backend lint
         run: pnpm lint
+        working-directory: backend
 
-      - name: Run tests
-        run: pnpm test
+      - name: Run backend unit tests
+        run: pnpm exec vitest run --exclude '**/*.integration.spec.ts'
+        working-directory: backend
 
-      - name: Build application
+      - name: Build backend
         run: pnpm build
+        working-directory: backend
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
+
+      - name: Run frontend lint
+        run: pnpm lint
+        working-directory: frontend
+
+      - name: TypeScript check
+        run: npx tsc -b
+        working-directory: frontend
+
+      - name: Run frontend tests
+        run: pnpm test
+        working-directory: frontend
+
+      - name: Build frontend
+        run: pnpm build
+        working-directory: frontend

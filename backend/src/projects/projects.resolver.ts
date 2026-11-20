@@ -3,6 +3,7 @@ import { Args, ID, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Project } from './entities/project.entity.js';
+import { ProjectMember } from './entities/project-member.entity.js';
 import { CreateProjectInput } from './dto/create-project.input.js';
 import { UpdateProjectInput } from './dto/update-project.input.js';
 import { ProjectsService } from './projects.service.js';
@@ -54,5 +55,34 @@ export class ProjectsResolver {
     @Args('projectId', { type: () => ID }) projectId: string,
   ) {
     return this.service.archive(user.id, organizationId, projectId);
+  }
+
+  @Query(() => [ProjectMember])
+  projectMembers(
+    @CurrentUser() user: { id: string },
+    @Args('organizationId', { type: () => ID }) organizationId: string,
+    @Args('projectId', { type: () => ID }) projectId: string,
+  ) {
+    return this.service.listMembers(user.id, organizationId, projectId);
+  }
+
+  @Mutation(() => ProjectMember)
+  addProjectMember(
+    @CurrentUser() user: { id: string },
+    @Args('organizationId', { type: () => ID }) organizationId: string,
+    @Args('projectId', { type: () => ID }) projectId: string,
+    @Args('userId', { type: () => ID }) userId: string,
+  ) {
+    return this.service.addMember(user.id, organizationId, projectId, userId);
+  }
+
+  @Mutation(() => Boolean)
+  removeProjectMember(
+    @CurrentUser() user: { id: string },
+    @Args('organizationId', { type: () => ID }) organizationId: string,
+    @Args('projectId', { type: () => ID }) projectId: string,
+    @Args('userId', { type: () => ID }) userId: string,
+  ) {
+    return this.service.removeMember(user.id, organizationId, projectId, userId);
   }
 }

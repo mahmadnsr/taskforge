@@ -285,4 +285,47 @@ describe('validateEnv', () => {
 
     expect(validateEnv(config)).toEqual(config);
   });
+
+  // TRUST_PROXY validation
+
+  it('should allow TRUST_PROXY to be omitted', () => {
+    expect(validateEnv(validConfig)).toEqual(validConfig);
+  });
+
+  it.each(['loopback', '127.0.0.1', '::ffff:127.0.0.1'])(
+    'should accept valid TRUST_PROXY value: %s',
+    (value) => {
+      const config = {
+        ...validConfig,
+        TRUST_PROXY: value,
+      };
+
+      expect(validateEnv(config)).toEqual(config);
+    },
+  );
+
+  it.each([
+    '10.0.0.0/8',
+    '172.16.0.0/12,10.0.0.0/8',
+    '192.168.1.1, 10.0.0.1',
+  ])('should accept valid TRUST_PROXY IP/CIDR value: %s', (value) => {
+    const config = {
+      ...validConfig,
+      TRUST_PROXY: value,
+    };
+
+    expect(validateEnv(config)).toEqual(config);
+  });
+
+  it.each(['true', '*', '', '  ', 'not-an-ip', '10.0.0.0/8, *'])(
+    'should reject invalid TRUST_PROXY value: %s',
+    (value) => {
+      expect(() =>
+        validateEnv({
+          ...validConfig,
+          TRUST_PROXY: value,
+        }),
+      ).toThrow(/TRUST_PROXY/);
+    },
+  );
 });

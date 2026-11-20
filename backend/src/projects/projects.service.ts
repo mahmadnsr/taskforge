@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -32,11 +33,35 @@ export class ProjectsService {
     return member.role;
   }
 
-  private async assertCanManage(userId: string, organizationId: string) {
+  private async assertAdmin(userId: string, organizationId: string) {
     const role = await this.getRole(userId, organizationId);
 
-    if (role === Role.EMPLOYEE) {
-      throw new ForbiddenException('Insufficient role');
+    if (role !== Role.ADMIN) {
+      throw new ForbiddenException('Only organization admins can manage projects');
+    }
+  }
+
+  private async assertProjectAccess(
+    userId: string,
+    organizationId: string,
+    projectId: string,
+    role: Role,
+  ): Promise<void> {
+    if (role === Role.ADMIN) {
+      return;
+    }
+
+    const membership = await this.prisma.projectMember.findFirst({
+      where: {
+        projectId,
+        userId,
+        organizationId,
+      },
+      select: { id: true },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('You must be a project member to access this project');
     }
   }
 
@@ -69,7 +94,7 @@ export class ProjectsService {
   }
 
   async create(userId: string, input: CreateProjectInput) {
-    await this.assertCanManage(userId, input.organizationId);
+    await this.assertAdmin(userId, input.organizationId);
 
     const project = await this.prisma.project.create({
       data: {
@@ -86,8 +111,29 @@ export class ProjectsService {
   }
 
   async list(userId: string, organizationId: string, includeArchived = false) {
-    // Never read cached data before checking the caller's membership.
-    await this.getRole(userId, organizationId);
+    const role = await this.getRole(userId, organizationId);
+
+    const statusFilter = includeArchived
+      ? {}
+      : { status: ProjectStatus.ACTIVE };
+
+    // Restricted roles are always filtered by project membership in the DB.
+    // Do not reuse the organization-wide Redis list for these callers.
+    if (role !== Role.ADMIN) {
+      return this.prisma.project.findMany({
+        where: {
+          organizationId,
+          ...statusFilter,
+          members: {
+            some: {
+              userId,
+              organizationId,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
 
     const version =
       await this.cache.getOrganizationVersion(organizationId);
@@ -95,10 +141,7 @@ export class ProjectsService {
     // Redis unavailable: safely fall back to the database.
     if (version === null) {
       return this.prisma.project.findMany({
-        where: {
-          organizationId,
-          ...(includeArchived ? {} : { status: ProjectStatus.ACTIVE }),
-        },
+        where: { organizationId, ...statusFilter },
         orderBy: { createdAt: 'desc' },
       });
     }
@@ -118,10 +161,7 @@ export class ProjectsService {
     }
 
     const projects = await this.prisma.project.findMany({
-      where: {
-        organizationId,
-        ...(includeArchived ? {} : { status: ProjectStatus.ACTIVE }),
-      },
+      where: { organizationId, ...statusFilter },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -135,13 +175,19 @@ export class ProjectsService {
   }
 
   async get(userId: string, organizationId: string, projectId: string) {
-    await this.getRole(userId, organizationId);
-    return this.findScoped(organizationId, projectId);
+    const role = await this.getRole(userId, organizationId);
+    const project = await this.findScoped(organizationId, projectId);
+    await this.assertProjectAccess(userId, organizationId, projectId, role);
+    return project;
   }
 
   async update(userId: string, input: UpdateProjectInput) {
     const { organizationId, projectId } = input;
-    await this.assertCanManage(userId, organizationId);
+    const role = await this.getRole(userId, organizationId);
+
+    if (role === Role.EMPLOYEE) {
+      throw new ForbiddenException('Insufficient role');
+    }
 
     const data: Prisma.ProjectUpdateInput = {};
 
@@ -158,6 +204,7 @@ export class ProjectsService {
     }
 
     const project = await this.findScoped(organizationId, projectId);
+    await this.assertProjectAccess(userId, organizationId, projectId, role);
 
     if (project.status === ProjectStatus.ARCHIVED) {
       throw new BadRequestException('Archived projects cannot be updated');
@@ -174,9 +221,14 @@ export class ProjectsService {
   }
 
   async archive(userId: string, organizationId: string, projectId: string) {
-    await this.assertCanManage(userId, organizationId);
+    const role = await this.getRole(userId, organizationId);
+
+    if (role === Role.EMPLOYEE) {
+      throw new ForbiddenException('Insufficient role');
+    }
 
     const project = await this.findScoped(organizationId, projectId);
+    await this.assertProjectAccess(userId, organizationId, projectId, role);
 
     if (project.status === ProjectStatus.ARCHIVED) {
       return project;
@@ -190,5 +242,142 @@ export class ProjectsService {
     await this.invalidateOrganizationProjects(organizationId);
 
     return archivedProject;
+  }
+
+  async listMembers(
+    userId: string,
+    organizationId: string,
+    projectId: string,
+  ) {
+    const role = await this.getRole(userId, organizationId);
+    await this.findScoped(organizationId, projectId);
+    await this.assertProjectAccess(userId, organizationId, projectId, role);
+
+    const members = await this.prisma.projectMember.findMany({
+      where: { projectId, organizationId },
+      include: {
+        orgMember: {
+          include: {
+            user: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return members.map((m) => ({
+      ...m,
+      user: m.orgMember.user,
+    }));
+  }
+
+  async addMember(
+    callerId: string,
+    organizationId: string,
+    projectId: string,
+    targetUserId: string,
+  ) {
+    await this.assertAdmin(callerId, organizationId);
+
+    const project = await this.findScoped(organizationId, projectId);
+    if (project.status === ProjectStatus.ARCHIVED) {
+      throw new BadRequestException('Archived projects cannot be updated');
+    }
+
+    const orgMember = await this.prisma.organizationMember.findUnique({
+      where: {
+        userId_organizationId: {
+          userId: targetUserId,
+          organizationId,
+        },
+      },
+      include: { user: true },
+    });
+
+    if (!orgMember) {
+      throw new NotFoundException('Member not found');
+    }
+
+    const existing = await this.prisma.projectMember.findUnique({
+      where: {
+        projectId_userId: {
+          projectId,
+          userId: targetUserId,
+        },
+      },
+    });
+
+    if (existing) {
+      throw new ConflictException('This user is already a member');
+    }
+
+    const created = await this.prisma.projectMember.create({
+      data: {
+        projectId,
+        userId: targetUserId,
+        organizationId,
+      },
+      include: {
+        orgMember: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
+
+    return {
+      ...created,
+      user: created.orgMember.user,
+    };
+  }
+
+  async removeMember(
+    callerId: string,
+    organizationId: string,
+    projectId: string,
+    targetUserId: string,
+  ): Promise<boolean> {
+    await this.assertAdmin(callerId, organizationId);
+
+    const project = await this.findScoped(organizationId, projectId);
+    if (project.status === ProjectStatus.ARCHIVED) {
+      throw new BadRequestException('Archived projects cannot be updated');
+    }
+
+    const existing = await this.prisma.projectMember.findUnique({
+      where: {
+        projectId_userId: {
+          projectId,
+          userId: targetUserId,
+        },
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Member not found');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.task.updateMany({
+        where: {
+          projectId,
+          organizationId,
+          assigneeId: targetUserId,
+        },
+        data: { assigneeId: null },
+      });
+
+      await tx.projectMember.delete({
+        where: {
+          projectId_userId: {
+            projectId,
+            userId: targetUserId,
+          },
+        },
+      });
+    });
+
+    return true;
   }
 }

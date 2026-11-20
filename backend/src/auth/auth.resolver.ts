@@ -44,6 +44,7 @@ export class AuthResolver {
     return this.authService.refresh(input.refreshToken);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Mutation(() => Boolean)
   logout(@Args('input') input: RefreshTokenInput) {
     return this.authService.logout(input.refreshToken);

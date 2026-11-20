@@ -14,9 +14,13 @@ describe('MemberManagementService', () => {
   const count = vi.fn();
   const update = vi.fn();
   const del = vi.fn();
+  const taskCount = vi.fn();
   const transaction = vi.fn();
 
-  const tx = { organizationMember: { findUnique, count, update, delete: del } };
+  const tx = {
+    organizationMember: { findUnique, count, update, delete: del },
+    task: { count: taskCount },
+  };
   const prisma = { $transaction: transaction } as unknown as PrismaService;
 
   let service: MemberManagementService;
@@ -39,6 +43,7 @@ describe('MemberManagementService', () => {
       Promise.resolve({ id: 'm1', ...data }),
     );
     del.mockResolvedValue({});
+    taskCount.mockResolvedValue(0);
     service = new MemberManagementService(prisma);
   });
 
@@ -157,6 +162,18 @@ describe('MemberManagementService', () => {
       mockCallerAndTarget({ role: 'ADMIN' }, { role: 'ADMIN' });
       count.mockResolvedValue(2);
       await expect(service.removeMember('u1', 'o1', 'u2')).resolves.toBe(true);
+    });
+
+    it('blocks removal when member created tasks', async () => {
+      mockCallerAndTarget({ role: 'ADMIN' }, { role: 'EMPLOYEE' });
+      taskCount.mockResolvedValue(1);
+      await expect(
+        service.removeMember('u1', 'o1', 'u2'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(del).not.toHaveBeenCalled();
+      expect(taskCount).toHaveBeenCalledWith({
+        where: { createdById: 'u2', organizationId: 'o1' },
+      });
     });
 
     it('target not in this organization is Not Found', async () => {

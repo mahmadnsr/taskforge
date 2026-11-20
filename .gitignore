@@ -59,4 +59,14 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 /backend/notes/
 
-/docs/
+# Project architecture and contributor documentation are versioned.
+
+# Local source snapshots are retained in working trees, not published.
+/.auth-validation-backup-*/
+*.backup*
+*.layout-backup
+*.before-feature-patch
+*.pre-integration-backup
+*.bak
+*.heartbeat-[0-9]*
+*.day[0-9]*-backup*

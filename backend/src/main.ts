@@ -18,6 +18,19 @@ async function bootstrap() {
 
   const isProd = config.get<string>('NODE_ENV') === 'production';
 
+  // Trusted proxy: only trust X-Forwarded-For from explicitly configured
+  // reverse proxies. Defaults to false (secure) when TRUST_PROXY is absent.
+  const trustProxy = config.get<string>('TRUST_PROXY');
+  if (trustProxy) {
+    const raw = trustProxy.trim();
+    const expressApp = app.getHttpAdapter().getInstance();
+    if (raw === 'loopback') {
+      expressApp.set('trust proxy', raw);
+    } else {
+      expressApp.set('trust proxy', raw.split(',').map((p) => p.trim()));
+    }
+  }
+
   // Security headers. CSP dev me off, warna Apollo Sandbox page toot jata hai.
   app.use(
     helmet({

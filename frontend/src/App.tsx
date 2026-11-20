@@ -8,10 +8,12 @@ import {
   Routes,
   useLocation,
 } from 'react-router-dom'
-import { AuthProvider, useAuth } from './auth/AuthContext'
+import { AuthProvider } from './auth/AuthContext'
+import { useAuth } from './auth/useAuth'
 import { apolloClient } from './lib/apollo'
 import AppLayout from './layouts/AppLayout'
 
+const Tasks = lazy(() => import('./pages/Tasks'))
 const Home = lazy(() => import('./pages/Home'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Login = lazy(() => import('./pages/Login'))
@@ -19,6 +21,7 @@ const Register = lazy(() => import('./pages/Register'))
 const Projects = lazy(() => import('./pages/Projects'))
 const Members = lazy(() => import('./pages/Members'))
 const AcceptInvitation = lazy(() => import('./pages/AcceptInvitation'))
+const Inbox = lazy(() => import('./pages/Inbox'))
 
 function PageLoader() {
   return (
@@ -146,11 +149,33 @@ function AppRoutes() {
         />
 
         <Route
+          path="/inbox"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Inbox />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/projects"
           element={
             <ProtectedRoute>
               <AppLayout>
                 <Projects />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/tasks"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Tasks />
               </AppLayout>
             </ProtectedRoute>
           }

@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { verifyPassword } from './password.util.js';
 
 import { AuthService } from './auth.service.js';
 import { TokenService } from './token.service.js';
@@ -140,7 +141,7 @@ describe('AuthService', () => {
       expect(createCall[1].passwordHash).not.toBe(input.password);
 
       expect(
-        await bcrypt.compare(input.password, createCall[1].passwordHash),
+        await verifyPassword(input.password, createCall[1].passwordHash),
       ).toBe(true);
 
       expect(organizationsService.createWithAdmin).toHaveBeenCalledWith(
@@ -253,7 +254,7 @@ describe('AuthService', () => {
       expect(createInput.passwordHash).not.toBe(input.password);
 
       expect(
-        await bcrypt.compare(input.password, createInput.passwordHash),
+        await verifyPassword(input.password, createInput.passwordHash),
       ).toBe(true);
 
       expect(

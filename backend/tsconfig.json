@@ -1,8 +1,11 @@
 {
   "compilerOptions": {
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "resolvePackageJsonExports": true,
+    "module": "node16",
+    "moduleResolution": "node16",
+    "resolvePackageJsonExports": false,
+    "paths": {
+      "@prisma/client": ["./node_modules/@prisma/client/.prisma/client"]
+    },
     "esModuleInterop": true,
     "isolatedModules": true,
     "declaration": true,

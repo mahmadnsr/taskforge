@@ -275,6 +275,7 @@ private async scanWindow(
       const tasks = await this.prisma.task.findMany({
         where: {
           ...(lastId ? { id: { gt: lastId } } : {}),
+          deletedAt: null,
           dueDate: {
             gte: new Date(target.getTime() - windowMs),
             lte: new Date(target.getTime() + windowMs),
@@ -369,6 +370,7 @@ private async scanWindow(
           where: {
             id: task.id,
             organizationId: task.organizationId,
+            deletedAt: null,
             dueDate,
             assigneeId: recipientId,
             status: { not: TaskStatus.DONE },
@@ -476,6 +478,7 @@ private async scanWindow(
       where: {
         id: task.id,
         organizationId: task.organizationId,
+        deletedAt: null,
         dueDate,
         assigneeId: recipientId,
         status: { not: TaskStatus.DONE },
@@ -536,6 +539,7 @@ private async scanWindow(
       where: {
         id: task.id,
         organizationId: task.organizationId,
+        deletedAt: null,
         dueDate,
         assigneeId: recipientId,
         status: { not: TaskStatus.DONE },

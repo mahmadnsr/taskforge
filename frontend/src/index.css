@@ -1,11 +1,16 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;450;500;600&display=swap');
+/* @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss"; */
+
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
+
 
 @layer base {
   :root {
     font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
     color: #e4e4e7;
-    background: #09090b;
+    background: #050505;
     color-scheme: dark;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -17,44 +22,79 @@
     min-width: 320px;
     min-height: 100vh;
     margin: 0;
-    background: #09090b;
+    background: #050505;
     color: #e4e4e7;
     font-size: 14px;
     line-height: 1.6;
     letter-spacing: -0.01em;
+    overflow-x: hidden;
   }
 
-  body, button, input, textarea, select { font-family: inherit; }
-  a { color: inherit; text-decoration: none; }
-  
   h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
     margin-top: 0;
-    color: #f4f4f5;
-    font-weight: 400; /* Patla letters */
-    letter-spacing: -0.02em;
-    line-height: 1.2;
+    color: #ffffff;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
   }
 
   p { margin-top: 0; color: #a1a1aa; }
+
+  ::selection { background: rgba(20, 184, 166, 0.3); color: #fff; }
 }
 
-.tf-input {
-  width: 100%;
-  min-height: 40px;
-  border: 1px solid #27272a;
-  border-radius: 8px;
-  background: #18181b;
-  padding: 8px 12px;
-  color: #e4e4e7;
-  font-size: 13px;
-  transition: all 150ms;
-}
-.tf-input:focus {
-  border-color: #3f3f46;
-  outline: none;
-}
-
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* Premium Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: #52525b; }
+::-webkit-scrollbar-thumb { background: #27272a; border-radius: 999px; border: 2px solid #050505; }
+::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+
+/* Animated Background Grid (for whole page) */
+.bg-grid-pattern {
+  background-size: 50px 50px;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  mask-image: radial-gradient(ellipse at 50% 50%, black 20%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, black 20%, transparent 70%);
+  animation: grid-move 20s linear infinite;
+}
+
+@keyframes grid-move {
+  0% { background-position: 0 0; }
+  100% { background-position: 50px 50px; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.4; }
+  50% { transform: translateY(-20px) scale(1.05); opacity: 0.6; }
+}
+
+.animate-float {
+  animation: float 8s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+.bg-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+}
+
+/* NAYA: Visible Camouflage Grid */
+.camo-grid {
+  background-size: 32px 32px;
+  background-image:
+    linear-gradient(to right, rgba(52, 211, 153, 0.15) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(52, 211, 153, 0.15) 1px, transparent 1px);
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+}
+
+/* Deep Emerald Gradient Base */
+.emerald-bg {
+  background: linear-gradient(135deg, #061210 0%, #0a0a0a 50%, #061210 100%);
+}

@@ -108,6 +108,15 @@ export class MemberManagementService {
         await this.assertNotLastAdmin(tx, organizationId);
       }
 
+      const createdTaskCount = await tx.task.count({
+        where: { createdById: userId, organizationId },
+      });
+      if (createdTaskCount > 0) {
+        throw new BadRequestException(
+          'Cannot remove this member because they created tasks in this organization. Reassign or archive those tasks first.',
+        );
+      }
+
       // Sirf membership delete. User account aur uske refresh tokens wahi rehte hain.
       await tx.organizationMember.delete({
         where: { userId_organizationId: { userId, organizationId } },

@@ -45,7 +45,7 @@ export class TaskCommentsService {
 
   private async getTask(organizationId: string, taskId: string) {
     const task = await this.prisma.task.findFirst({
-      where: { id: taskId, organizationId },
+      where: { id: taskId, organizationId, deletedAt: null },
       select: {
         id: true,
         organizationId: true,
@@ -213,7 +213,7 @@ export class TaskCommentsService {
     commentId: string,
   ) {
     const comment = await this.prisma.taskComment.findFirst({
-      where: { id: commentId, organizationId, taskId },
+      where: { id: commentId, organizationId, taskId, task: { deletedAt: null } },
       select: {
         id: true,
         organizationId: true,

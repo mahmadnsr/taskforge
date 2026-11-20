@@ -1,7 +1,5 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
@@ -10,6 +8,7 @@ import {
 import { gql } from '@apollo/client'
 import { useMutation } from '@apollo/client/react'
 import { apolloClient } from '../lib/apollo'
+import { AuthContext } from './authContext'
 import {
   clearTokens,
   getRefreshToken,
@@ -102,8 +101,7 @@ const LOGOUT_MUTATION = gql`
   }
 `
 
-type AuthContextValue = {
-  user: User | null
+export type AuthContextValue = {  user: User | null
   isAuthenticated: boolean
   isInitializing: boolean
   login: (email: string, password: string) => Promise<void>
@@ -122,7 +120,6 @@ type AuthContextValue = {
   logout: () => Promise<void>
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null)
 
 // Share one refresh request across StrictMode effect executions.
 let restoreSessionPromise: Promise<AuthPayload | null> | null = null
@@ -311,14 +308,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   )
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext)
-
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider.')
-  }
-
-  return context
 }

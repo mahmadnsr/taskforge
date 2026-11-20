@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../auth/AuthContext'
+import { useAuth } from '../auth/useAuth'
+import { Logo } from '../components/Logo' // Naya Logo Import
 
 const EMAIL_MAX_LENGTH = 254
-const PASSWORD_MAX_LENGTH = 72
+const PASSWORD_MAX_LENGTH = 128
 
 type LoginLocationState = {
   from?: string
@@ -14,47 +15,44 @@ export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const redirectTo =
-    (location.state as LoginLocationState | null)?.from || '/dashboard'
+  const redirectTo = (location.state as LoginLocationState | null)?.from || '/dashboard'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
 
   if (isAuthenticated) {
     return <Navigate to={redirectTo} replace />
   }
 
-  const handleSubmit = async (
-    event: React.FormEvent<HTMLFormElement>,
-  ) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     if (loading) return
-
     setError('')
 
     const normalizedEmail = email.trim()
 
+    const nextErrors: Record<string, string> = {}
+
     if (
       normalizedEmail.length === 0 ||
-      normalizedEmail.length > EMAIL_MAX_LENGTH
+      normalizedEmail.length > EMAIL_MAX_LENGTH ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)
     ) {
-      setError('Please enter a valid email address.')
-      return
+      nextErrors.email = 'Enter a valid email address (e.g. name@company.com).'
     }
 
-    if (
-      password.length === 0 ||
-      password.length > PASSWORD_MAX_LENGTH
-    ) {
-      setError('Password must be between 1 and 72 characters.')
-      return
+    if (password.length === 0 || password.length > PASSWORD_MAX_LENGTH) {
+      nextErrors.password = 'Password is required and must be 128 characters or fewer.'
     }
+
+    setFieldErrors(nextErrors)
+    if (Object.keys(nextErrors).length > 0) return
 
     setLoading(true)
-
     try {
       await login(normalizedEmail, password)
       navigate(redirectTo, { replace: true })
@@ -66,121 +64,123 @@ export default function Login() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#080d18] px-5 py-10">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050505] px-5 py-10 text-zinc-300 selection:bg-teal-500/30">
+      <div className="bg-grid-pattern absolute inset-0 -z-10" />
+      <div className="absolute left-1/2 top-0 -z-10 h-[600px] w-[1000px] -translate-x-1/2 bg-teal-500/10 blur-[150px] animate-float rounded-[100%]" />
+      <div className="absolute inset-0 bg-noise -z-10 mix-blend-overlay" />
+
       <section className="w-full max-w-md">
-        <Link to="/" className="mb-9 flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-xl bg-cyan-400 text-lg font-black text-slate-950">
-            T
-          </span>
-          <span className="text-2xl font-bold tracking-tight text-white">
-            TaskForge
-          </span>
+
+        {/* Naya Reusable Logo, Size Bada */}
+        <Link to="/" className="mb-8 flex items-center justify-center gap-3 transition-transform hover:scale-105">
+          <Logo className="size-14" />
+          <span className="text-[24px] font-semibold tracking-tight text-white">Work-Bench</span>
         </Link>
 
-        <div className="rounded-2xl border border-white/10 bg-white/4 p-7 shadow-2xl shadow-black/20 sm:p-9">
-          <p className="mb-3 text-sm font-semibold text-cyan-400">
-            YOUR WORKSPACE AWAITS
-          </p>
+        <div className="relative overflow-hidden rounded-3xl border border-white/[0.06] bg-[#0a0a0a] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+          <div className="emerald-bg absolute inset-0" />
+          <div className="camo-grid-dense absolute inset-0" />
 
-          <h1 className="text-3xl font-bold tracking-tight text-white">
-            Welcome back
-          </h1>
+          <div className="relative rounded-[22px] bg-gradient-to-b from-white/[0.02] to-transparent p-7 sm:p-9">
+            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-teal-400">
+              Your workspace awaits
+            </p>
 
-          <p className="mt-2 text-sm leading-6 text-slate-400">
-            Sign in to manage your projects and collaborate with your team.
-          </p>
+            <h1 className="mt-2 text-[28px] font-light tracking-tight text-white">
+              Welcome back
+            </h1>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-2 block text-sm font-medium text-slate-200"
-              >
-                Email address
-              </label>
+            <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
+              Sign in to manage your projects and collaborate with your team.
+            </p>
 
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="username"
-                autoCapitalize="none"
-                spellCheck={false}
-                inputMode="email"
-                maxLength={EMAIL_MAX_LENGTH}
-                required
-                value={email}
-                onChange={(event) => {
-                  setEmail(event.target.value)
-                  if (error) setError('')
-                }}
-                placeholder="you@company.com"
-                aria-invalid={Boolean(error)}
-                aria-describedby={error ? 'login-error' : undefined}
-                className="w-full rounded-xl border border-white/10 bg-[#0c1322] px-4 py-3 text-white placeholder:text-slate-600 focus:border-cyan-400"
-              />
-            </div>
+            <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+              <div>
+                <label htmlFor="email" className="mb-2 block text-[13px] font-medium text-zinc-300">
+                  Email address <span className="ml-1 text-rose-500">*</span>
+                </label>
 
-            <div>
-              <label
-                htmlFor="password"
-                className="mb-2 block text-sm font-medium text-slate-200"
-              >
-                Password
-              </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  inputMode="email"
+                  maxLength={EMAIL_MAX_LENGTH}
+                  required
+                  value={email}
+                  onChange={(event) => {
+                    setEmail(event.target.value)
+                    setFieldErrors((old) => ({ ...old, email: '' }))
+                    if (error) setError('')
+                  }}
+                  placeholder="you@company.com"
+                  aria-invalid={Boolean(fieldErrors.email)}
+                  aria-describedby={fieldErrors.email ? 'login-email-error' : undefined}
+                  className={`w-full rounded-full border ${fieldErrors.email ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20' : 'border-white/10 focus:border-teal-500/50 focus:ring-teal-500/20'} bg-[#0a0a0a]/50 px-5 py-3 text-[14px] text-zinc-200 placeholder:text-zinc-600 outline-none backdrop-blur-md transition-all hover:border-white/20 focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20`}
+                />
+                {fieldErrors.email && <p id="login-email-error" role="alert" className="mt-2 text-xs text-rose-400">{fieldErrors.email}</p>}
+              </div>
 
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                maxLength={PASSWORD_MAX_LENGTH}
-                required
-                value={password}
-                onChange={(event) => {
-                  setPassword(event.target.value)
-                  if (error) setError('')
-                }}
-                placeholder="Enter your password"
-                aria-invalid={Boolean(error)}
-                aria-describedby={error ? 'login-error' : undefined}
-                className="w-full rounded-xl border border-white/10 bg-[#0c1322] px-4 py-3 text-white placeholder:text-slate-600 focus:border-cyan-400"
-              />
-            </div>
+              <div>
+                <label htmlFor="password" className="mb-2 block text-[13px] font-medium text-zinc-300">
+                  Password <span className="ml-1 text-rose-500">*</span>
+                </label>
 
-            {error && (
-              <p
-                id="login-error"
-                role="alert"
-                className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300"
-              >
-                {error}
-              </p>
-            )}
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  maxLength={PASSWORD_MAX_LENGTH}
+                  required
+                  value={password}
+                  onChange={(event) => {
+                    setPassword(event.target.value)
+                    setFieldErrors((old) => ({ ...old, password: '' }))
+                    if (error) setError('')
+                  }}
+                  placeholder="Enter your password"
+                  aria-invalid={Boolean(fieldErrors.password)}
+                  aria-describedby={fieldErrors.password ? 'login-password-error' : undefined}
+                  className={`w-full rounded-full border ${fieldErrors.password ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20' : 'border-white/10 focus:border-teal-500/50 focus:ring-teal-500/20'} bg-[#0a0a0a]/50 px-5 py-3 text-[14px] text-zinc-200 placeholder:text-zinc-600 outline-none backdrop-blur-md transition-all hover:border-white/20 focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20`}
+                />
+                {fieldErrors.password && <p id="login-password-error" role="alert" className="mt-2 text-xs text-rose-400">{fieldErrors.password}</p>}
+              </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              aria-busy={loading}
-              className="w-full rounded-xl bg-cyan-400 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? 'Signing in…' : 'Sign in'}
-            </button>
-          </form>
+              {error && (
+                <p id="login-error" role="alert" className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-[13px] text-rose-200">
+                  {error}
+                </p>
+              )}
 
-          <p className="mt-6 text-center text-sm text-slate-400">
-            New to TaskForge?{' '}
-            <Link
-              to="/register"
-              state={{ from: redirectTo }}
-              className="font-semibold text-cyan-400 hover:text-cyan-300"
-            >
-              Create an account
-            </Link>
-          </p>
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  aria-busy={loading}
+                  className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl border border-white/30 bg-gradient-to-b from-white to-zinc-100 px-6 py-2.5 text-[14px] font-medium tracking-wide text-zinc-900 shadow-[inset_0_1px_0_rgba(255,255,255,1),0_2px_4px_rgba(0,0,0,0.1)] transition-all hover:-translate-y-0.5 hover:from-white hover:to-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,1),0_4px_8px_rgba(0,0,0,0.15)] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="relative z-10">
+                    {loading ? 'Signing in…' : 'Sign in'}
+                  </span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
+                </button>
+              </div>
+            </form>
+
+            <p className="mt-6 text-center text-[13px] text-zinc-500">
+              New to Work-Bench?{' '}
+              <Link to="/register" state={{ from: redirectTo }} className="font-medium text-teal-400 transition-colors hover:text-teal-300">
+                Create an account
+              </Link>
+            </p>
+          </div>
         </div>
 
-        <p className="mt-6 text-center text-xs text-slate-600">
+        <p className="mt-8 text-center text-[11px] font-medium tracking-wide text-zinc-600">
           Built for focused teams and better work.
         </p>
       </section>

@@ -10,10 +10,10 @@ export class LoginInput {
   @Field()
   @IsEmail()
   @MaxLength(254)
-  email: string;
+  email!: string;
 
   @Field()
   @IsNotEmpty()
   @MaxLength(72)
-  password: string;
+  password!: string;
 }

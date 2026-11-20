@@ -1,6 +1,13 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "resolvePackageJsonExports": false,
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@prisma/client": ["./node_modules/@prisma/client/.prisma/client"]
+    },
+    "module": "node10",
+    "moduleResolution": "node10",
     "rootDir": "./src"
   },
   "include": ["src"],

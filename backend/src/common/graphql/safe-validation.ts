@@ -33,6 +33,7 @@ export const APPROVED_FIELDS: ReadonlySet<string> = new Set([
   'sortBy',
   'sortDirection',
   'notificationId',
+  'invitationToken',
   'name',
   'organizationId',
   'organizationName',
@@ -49,6 +50,12 @@ export const APPROVED_FIELDS: ReadonlySet<string> = new Set([
   'commentId',
   'content',
   'after',
+  'parentId',
+  'itemId',
+  'itemIds',
+  'completed',
+  'position',
+  'employeeId',
 ]);
 
 /**
@@ -69,6 +76,9 @@ export const CONSTRAINT_MESSAGES: ReadonlyMap<string, string> = new Map([
   ['matches', 'has an invalid format'],
   ['isEnum', 'must be one of the allowed values'],
   ['isInt', 'must be an integer'],
+  ['isBoolean', 'must be a boolean'],
+  ['isArray', 'must be an array'],
+  ['arrayMaxSize', 'has too many items'],
   ['min', 'is below the minimum allowed value'],
   ['max', 'exceeds the maximum allowed value'],
 ]);

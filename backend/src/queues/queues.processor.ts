@@ -117,6 +117,7 @@ export class QueuesProcessor extends WorkerHost {
                     dueDate: true,
                     assigneeId: true,
                     status: true,
+                    deletedAt: true,
                   },
                 },
                 recipient: {
@@ -149,6 +150,7 @@ export class QueuesProcessor extends WorkerHost {
             claimedReminder.task.assigneeId ===
               claimedReminder.recipientId &&
             claimedReminder.task.status !== TaskStatus.DONE &&
+            claimedReminder.task.deletedAt === null &&
             claimedReminder.recipient.email === data.to;
 
           if (!taskIsCurrent) {
@@ -276,9 +278,7 @@ export class QueuesProcessor extends WorkerHost {
           }
         }
 
-        console.log(
-          `[TaskForge Worker] Email sent job=${job.id} to=${data.to}`,
-        );
+        this.logger.log(`Email sent successfully. job=${job.id}`);
 
         return;
       }

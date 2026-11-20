@@ -204,6 +204,23 @@ describe('InvitationsService.inviteMember', () => {
     expect(email.html).toContain('EMPLOYEE');
   });
 
+  it('uses the configured staging frontend URL in invitation email links', async () => {
+    configGet.mockImplementation((key: string) =>
+      key === 'FRONTEND_URL' ? 'http://127.0.0.1:8088' : undefined,
+    );
+
+    const result = await service.inviteMember('u1', input());
+    const sent = emailSend.mock.calls[0][0];
+    const expectedLink =
+      `http://127.0.0.1:8088/accept-invitation?token=${result.inviteToken}`;
+
+    expect(sent.text).toContain(expectedLink);
+    expect(sent.html).toContain(`href="${expectedLink}"`);
+    expect(inviteCreate.mock.calls[0][0].data.tokenHash).toBe(
+      hashToken(result.inviteToken as string),
+    );
+  });
+
   it('escapes organization names in the HTML email', async () => {
     organizationFindUnique.mockResolvedValue({
       name: '<script>alert("x")</script>',
