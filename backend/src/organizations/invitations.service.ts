@@ -54,12 +54,8 @@ export class InvitationsService {
       throw new ForbiddenException(NOT_A_MEMBER);
     }
 
-    if (caller.role === Role.EMPLOYEE) {
-      throw new ForbiddenException('Insufficient role');
-    }
-
-    if (caller.role === Role.MANAGER && role !== Role.EMPLOYEE) {
-      throw new ForbiddenException('Managers can only invite employees');
+    if (caller.role !== Role.ADMIN) {
+      throw new ForbiddenException('Only organization admins can invite members');
     }
 
     const existingMember = await this.prisma.organizationMember.findFirst({

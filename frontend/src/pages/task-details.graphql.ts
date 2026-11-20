@@ -85,3 +85,30 @@ export const TASK_ACTIVITY = gql`
     }
   }
 `
+
+export const TASK_DEPENDENCIES = gql`
+  query TaskDependencies($organizationId: ID!, $taskId: ID!) {
+    taskDependencies(organizationId: $organizationId, taskId: $taskId) {
+      taskId blockingTaskId blockingTitle blockingStatus
+    }
+  }
+`
+export const DEPENDENCY_CANDIDATES = gql`
+  query DependencyCandidates($organizationId: ID!, $projectId: ID!, $filters: TaskQueryInput) {
+    searchProjectTasks(organizationId: $organizationId, projectId: $projectId, filters: $filters) {
+      tasks { id title status }
+    }
+  }
+`
+export const ADD_TASK_DEPENDENCY = gql`
+  mutation AddTaskDependency($organizationId: ID!, $taskId: ID!, $blockingTaskId: ID!) {
+    addTaskDependency(organizationId: $organizationId, taskId: $taskId, blockingTaskId: $blockingTaskId) {
+      taskId blockingTaskId blockingTitle blockingStatus
+    }
+  }
+`
+export const REMOVE_TASK_DEPENDENCY = gql`
+  mutation RemoveTaskDependency($organizationId: ID!, $taskId: ID!, $blockingTaskId: ID!) {
+    removeTaskDependency(organizationId: $organizationId, taskId: $taskId, blockingTaskId: $blockingTaskId)
+  }
+`

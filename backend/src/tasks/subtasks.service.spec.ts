@@ -15,8 +15,11 @@ function setup(role: Role | null = Role.ADMIN) {
   const parent = { id: parentId, organizationId: org, projectId: project, parentId: null };
   const child = { id: childId, organizationId: org, projectId: project, parentId, status: TaskStatus.TODO, assigneeId: user, createdById: user };
   const tx = {
+    $queryRaw: vi.fn().mockResolvedValue([{ id: project }]),
+    taskDependency: { count: vi.fn().mockResolvedValue(0) },
     taskActivity: { create: vi.fn().mockResolvedValue({ id: 'activity-1' }), findMany: vi.fn().mockResolvedValue([]) },
     task: {
+      findUniqueOrThrow: vi.fn().mockResolvedValue({ id: childId, organizationId: org, projectId: project, title: 'Child' }),
       findFirst: vi.fn().mockResolvedValue(parent),
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),
@@ -94,7 +97,8 @@ describe('subtasks', () => {
     await service.updateSubtask(user, { organizationId: org, taskId: childId, title: 'Updated' });
     await service.assignSubtask(user, { organizationId: org, taskId: childId, assigneeId: null });
     await service.changeSubtaskStatus(user, { organizationId: org, taskId: childId, status: TaskStatus.IN_PROGRESS });
-    expect(tx.task.update).toHaveBeenCalledTimes(3);
+    expect(tx.task.update).toHaveBeenCalledTimes(2);
+    expect(tx.task.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { status: TaskStatus.IN_PROGRESS } }));
   });
 
   it('keeps employee detail edits and deletion forbidden', async () => {
@@ -132,6 +136,6 @@ describe('subtasks', () => {
     await service.changeSubtaskStatus(user, { organizationId: org, taskId: childId, status: TaskStatus.IN_PROGRESS });
     prisma.task.findFirst.mockResolvedValue({ ...child, status: TaskStatus.IN_REVIEW });
     await service.changeSubtaskStatus(user, { organizationId: org, taskId: childId, status: TaskStatus.DONE });
-    expect(tx.taskActivity.create.mock.calls.map(([call]) => call.data.type)).toEqual(['SUBTASK_UPDATED', 'SUBTASK_PRIORITY_CHANGED', 'SUBTASK_STATUS_CHANGED', 'SUBTASK_COMPLETED']);
+    expect(tx.taskActivity.create.mock.calls.map(([call]) => call.data.type)).toEqual(['SUBTASK_UPDATED', 'SUBTASK_PRIORITY_CHANGED', 'SUBTASK_STATUS_CHANGED', 'TASK_APPROVED']);
   });
 });

@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/useAuth'
 import { TaskDetailsPanel } from './TaskDetailsPanel'
+import { MY_ORGANIZATIONS, ORGANIZATION_MEMBERS, ORGANIZATION_PROJECTS, SEARCH_PROJECT_TASKS, TASK_PROJECT_MEMBERS } from './tasks.graphql'
 
 type Organization = { id: string; name: string; slug: string }
 type Project = { id: string; organizationId: string; name: string; status: string }
@@ -47,6 +48,7 @@ type OrganizationMember = {
 }
 type OrganizationMembersData = { organizationMembers: OrganizationMember[] }
 type ProjectsData = { projects: Project[] }
+type ProjectMembersData = { projectMembers: { userId: string }[] }
 type SearchTasksData = { searchProjectTasks: TaskPage }
 
 type TaskComment = {
@@ -104,81 +106,6 @@ type DeleteTaskVariables = {
   organizationId: string
   taskId: string
 }
-
-const MY_ORGANIZATIONS = gql`
-  query MyOrganizations {
-    myOrganizations {
-      id
-      name
-      slug
-    }
-  }
-`
-
-const ORGANIZATION_MEMBERS = gql`
-  query OrganizationMembers($organizationId: ID!) {
-    organizationMembers(organizationId: $organizationId) {
-      id
-      role
-      user {
-        id
-        name
-        email
-      }
-    }
-  }
-`
-
-const ORGANIZATION_PROJECTS = gql`
-  query OrganizationProjects(
-    $organizationId: ID!
-    $includeArchived: Boolean!
-  ) {
-    projects(
-      organizationId: $organizationId
-      includeArchived: $includeArchived
-    ) {
-      id
-      organizationId
-      name
-      status
-    }
-  }
-`
-
-const SEARCH_PROJECT_TASKS = gql`
-  query SearchProjectTasks(
-    $organizationId: ID!
-    $projectId: ID!
-    $filters: TaskQueryInput
-  ) {
-    searchProjectTasks(
-      organizationId: $organizationId
-      projectId: $projectId
-      filters: $filters
-    ) {
-      tasks {
-        id
-        organizationId
-        projectId
-        parentId
-        title
-        description
-        status
-        priority
-        createdById
-        assigneeId
-        dueDate
-        createdAt
-        updatedAt
-      }
-      totalCount
-      hasNextPage
-      limit
-      offset
-    }
-  }
-`
 
 const CREATE_TASK = gql`
   mutation CreateTask($input: CreateTaskInput!) {
@@ -376,6 +303,8 @@ function TaskModal({
   saving,
   error,
   members,
+  assigneesLoading,
+  assigneesError,
 }: {
   onClose: () => void
   onCreate: (input: {
@@ -388,6 +317,8 @@ function TaskModal({
   saving: boolean
   error: string
   members: OrganizationMember[]
+  assigneesLoading: boolean
+  assigneesError: boolean
 }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -584,6 +515,7 @@ function TaskModal({
                 id="task-assignee"
                 value={assigneeId}
                 onChange={(event) => setAssigneeId(event.target.value)}
+                disabled={assigneesLoading || assigneesError}
                 className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-[#0a0a0a]/50 px-4 text-[13px] font-medium text-zinc-200 outline-none backdrop-blur-md transition-all hover:border-white/20 focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20"
               >
                 <option value="" className="bg-zinc-900">Unassigned</option>
@@ -593,6 +525,9 @@ function TaskModal({
                   </option>
                 ))}
               </select>
+              {assigneesLoading && <p role="status" className="mt-2 text-xs text-zinc-500">Loading eligible project members…</p>}
+              {assigneesError && <p role="alert" className="mt-2 text-xs text-rose-300">Could not load project team. You can create an unassigned task.</p>}
+              {!assigneesLoading && !assigneesError && members.length === 0 && <p className="mt-2 text-xs text-zinc-500">Add eligible members in Project Team before assigning tasks.</p>}
             </div>
 
             {(validationError || error) && (
@@ -1074,7 +1009,7 @@ export default function Tasks() {
     ? organizationId
     : organizations[0]?.id ?? ''
 
-  const { data: membersData, error: membersError } = useQuery<
+  const { data: membersData, loading: membersLoading, error: membersError } = useQuery<
     OrganizationMembersData,
     { organizationId: string }
   >(ORGANIZATION_MEMBERS, {
@@ -1086,9 +1021,8 @@ export default function Tasks() {
   const currentMember = (membersData?.organizationMembers ?? []).find(
     (member) => member.user.id === user?.id,
   )
-  const currentRole = currentMember?.role
-  const canManageTasks =
-    currentRole === 'ADMIN' || currentRole === 'MANAGER'
+  const currentRole = !membersLoading && !membersError ? currentMember?.role : undefined
+  const canManageTasks = currentRole === 'ADMIN' || currentRole === 'MANAGER'
 
   const {
     data: projectsData,
@@ -1113,6 +1047,22 @@ export default function Tasks() {
   )
     ? projectId
     : projects[0]?.id ?? ''
+
+  const {
+    data: projectMembersData,
+    loading: projectMembersLoading,
+    error: projectMembersError,
+  } = useQuery<ProjectMembersData>(TASK_PROJECT_MEMBERS, {
+    variables: { organizationId: selectedOrganizationId, projectId: selectedProjectId },
+    skip: !canManageTasks || !selectedProjectId,
+    fetchPolicy: 'cache-and-network',
+  })
+  const projectMemberIds = new Set(projectMembersData?.projectMembers.map((member) => member.userId) ?? [])
+  const eligibleAssignees = !projectMembersLoading && !projectMembersError
+    ? (membersData?.organizationMembers ?? []).filter((member) =>
+      projectMemberIds.has(member.user.id) &&
+      (currentRole === 'ADMIN' || member.role === 'EMPLOYEE'))
+    : []
 
   const filters: SearchTasksVariables['filters'] = {
     sortBy: 'CREATED_AT',
@@ -1182,6 +1132,11 @@ export default function Tasks() {
     dueDate: string
     assigneeId?: string | null
   }) {
+    if (!canManageTasks || !selectedProjectId) return
+    if (input.assigneeId && !eligibleAssignees.some((member) => member.user.id === input.assigneeId)) {
+      setMutationError('Assignee must be an eligible member of this project.')
+      return
+    }
     setMutationError('')
     setNotice('')
 
@@ -1359,7 +1314,7 @@ export default function Tasks() {
                 </p>
               </div>
 
-              {currentRole && (
+              {canManageTasks && (
               <button
                 type="button"
                 onClick={() => {
@@ -1413,6 +1368,8 @@ export default function Tasks() {
             onChange={(value) => {
               setOrganizationId(value)
               setProjectId('')
+              setCreateModalOpen(false)
+              setEditingTask(null)
               setDetailsTask(null)
               resetPagination()
               setNotice('')
@@ -1431,6 +1388,8 @@ export default function Tasks() {
             value={selectedProjectId}
             onChange={(value) => {
               setProjectId(value)
+              setCreateModalOpen(false)
+              setEditingTask(null)
               setDetailsTask(null)
               resetPagination()
               setNotice('')
@@ -1578,10 +1537,12 @@ export default function Tasks() {
               <p className="mx-auto mt-2 max-w-md text-[14px] font-light leading-relaxed text-zinc-500">
                 {search || statusFilter || priorityFilter
                   ? 'Try changing your search or filters.'
-                  : 'Create the first task for this project to get work moving.'}
+                  : canManageTasks
+                    ? 'Create the first task for this project to get work moving.'
+                    : 'No tasks have been added to this project yet.'}
               </p>
 
-              {currentRole && !search && !statusFilter && !priorityFilter && (
+              {canManageTasks && !search && !statusFilter && !priorityFilter && (
                 <button
                   type="button"
                   onClick={() => setCreateModalOpen(true)}
@@ -1692,7 +1653,8 @@ export default function Tasks() {
 
                         {(canManageTasks ||
                           (currentRole === 'EMPLOYEE' && task.assigneeId === user?.id)) &&
-                          nextStatuses.length > 0 && (
+                          nextStatuses.length > 0 &&
+                          (canManageTasks || task.status !== 'IN_REVIEW') && (
                           <label className="relative w-full">
                             <select
                               value=""
@@ -1708,7 +1670,7 @@ export default function Tasks() {
                               <option value="">Change status…</option>
                               {nextStatuses.map((status) => (
                                 <option key={status} value={status} className="bg-zinc-900">
-                                  {STATUS_LABELS[status]}
+                                  {task.status === 'IN_REVIEW' ? status === 'DONE' ? 'Approve' : 'Request changes' : STATUS_LABELS[status]}
                                 </option>
                               ))}
                             </select>
@@ -1791,7 +1753,7 @@ export default function Tasks() {
         </section>
       </div>
 
-      {editingTask && (
+      {canManageTasks && editingTask && (
         <TaskEditModal
           task={editingTask}
           organizationId={selectedOrganizationId}
@@ -1800,8 +1762,8 @@ export default function Tasks() {
             setNotice('Task updated successfully.')
             void refetchTasks()
           }}
-          members={membersData?.organizationMembers ?? []}
-          canAssign={canManageTasks}
+          members={eligibleAssignees}
+          canAssign={canManageTasks && !projectMembersLoading && !projectMembersError && Boolean(projectMembersData)}
         />
       )}
 
@@ -1820,12 +1782,14 @@ export default function Tasks() {
           organizationId={selectedOrganizationId}
           role={currentRole}
           userId={user?.id}
+          eligibleAssigneeIds={eligibleAssignees.map((member) => member.user.id)}
+          assigneesReady={!projectMembersLoading && !projectMembersError && Boolean(projectMembersData)}
           onClose={() => setDetailsTask(null)}
           onTaskChanged={() => { void refetchTasks() }}
         />
       )}
 
-      {createModalOpen && selectedProjectId && (
+      {canManageTasks && createModalOpen && selectedProjectId && (
         <TaskModal
           onClose={() => {
             if (!createState.loading) {
@@ -1836,7 +1800,9 @@ export default function Tasks() {
           onCreate={handleCreate}
           saving={createState.loading}
           error={mutationError}
-          members={membersData?.organizationMembers ?? []}
+          members={eligibleAssignees}
+          assigneesLoading={projectMembersLoading}
+          assigneesError={Boolean(projectMembersError)}
         />
       )}
     </div>

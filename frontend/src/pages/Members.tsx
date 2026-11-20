@@ -274,12 +274,13 @@ export default function Members() {
       member.user.id === user?.id ||
       member.user.email.toLowerCase() === user?.email?.toLowerCase(),
   )
-  const currentRole = currentMember?.role
+  const currentRole = !membersLoading && !membersError ? currentMember?.role : undefined
   const canManageMembers = currentRole === 'ADMIN'
-  const canInvite = currentRole === 'ADMIN' || currentRole === 'MANAGER'
+  const canInvite = currentRole === 'ADMIN'
 
   async function handleInvite(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!canInvite) return
     setPageError('')
     setNotice('')
     setInviteToken(null)
@@ -516,6 +517,7 @@ export default function Members() {
                 value={selectedOrganizationId}
                 onChange={(event) => {
                   setOrganizationId(event.target.value)
+                  setInviteOpen(false)
                   setPageError('')
                   setNotice('')
                 }}
@@ -907,7 +909,7 @@ export default function Members() {
       </div>
 
       {/* Invite Modal */}
-      {inviteOpen && (
+      {canInvite && inviteOpen && (
         <div
           className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/70 p-4 backdrop-blur-md"
           onMouseDown={(event) => {

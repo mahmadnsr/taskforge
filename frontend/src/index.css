@@ -5,6 +5,29 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
+/* Interactive controls show intent while disabled controls remain distinct. */
+@layer base {
+  button:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="submit"]:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]) { cursor: pointer; }
+
+  button:disabled,
+  select:disabled,
+  input[type="checkbox"]:disabled,
+  input[type="radio"]:disabled,
+  input[type="submit"]:disabled { cursor: not-allowed; }
+
+  :is(button, a[href], select, input[type="checkbox"], input[type="radio"], [role="button"], [role="tab"]):focus-visible {
+    outline: 2px solid #2dd4bf;
+    outline-offset: 2px;
+  }
+}
+
 
 @layer base {
   :root {

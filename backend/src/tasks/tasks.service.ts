@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -281,10 +282,32 @@ export class TasksService {
     }
   }
 
+  private async assertEligibleAssignee(
+    role: Role,
+    organizationId: string,
+    projectId: string,
+    assigneeId: string,
+  ) {
+    const assignee = await this.prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId: assigneeId } },
+      select: { organizationId: true, orgMember: { select: { role: true } } },
+    });
+    if (!assignee || assignee.organizationId !== organizationId) {
+      throw new BadRequestException('Assignee must be a member of this project');
+    }
+    if (role === Role.MANAGER && assignee.orgMember.role !== Role.EMPLOYEE) {
+      throw new ForbiddenException('Managers can assign tasks only to project employees');
+    }
+  }
+
   async create(userId: string, input: CreateTaskInput, parentId?: string) {
     const { organizationId, projectId } = input;
 
     const membership = await this.getMembership(userId, organizationId);
+
+    if (membership.role !== Role.ADMIN && membership.role !== Role.MANAGER) {
+      throw new ForbiddenException('Only admins and managers can create tasks');
+    }
 
     await this.assertProjectActive(organizationId, projectId);
 
@@ -304,21 +327,7 @@ export class TasksService {
     }
 
     if (input.assigneeId) {
-      const assignee = await this.prisma.projectMember.findUnique({
-        where: {
-          projectId_userId: {
-            projectId,
-            userId: input.assigneeId,
-          },
-        },
-        select: { id: true },
-      });
-
-      if (!assignee) {
-        throw new BadRequestException(
-          'Assignee must be a member of this project',
-        );
-      }
+      await this.assertEligibleAssignee(membership.role, organizationId, projectId, input.assigneeId);
     }
 
     if (!input.title.trim()) {
@@ -464,22 +473,8 @@ export class TasksService {
       throw new BadRequestException('Invalid due date');
     }
 
-    if (input.assigneeId) {
-      const assignee = await this.prisma.projectMember.findUnique({
-        where: {
-          projectId_userId: {
-            projectId: task.projectId,
-            userId: input.assigneeId,
-          },
-        },
-        select: { id: true },
-      });
-
-      if (!assignee) {
-        throw new BadRequestException(
-          'Assignee must be a member of this project',
-        );
-      }
+    if (input.assigneeId && input.assigneeId !== task.assigneeId) {
+      await this.assertEligibleAssignee(membership.role, organizationId, task.projectId, input.assigneeId);
     }
 
     const data: {
@@ -611,21 +606,7 @@ export class TasksService {
     }
 
     if (assigneeId) {
-      const assignee = await this.prisma.projectMember.findUnique({
-        where: {
-          projectId_userId: {
-            projectId: task.projectId,
-            userId: assigneeId,
-          },
-        },
-        select: { id: true },
-      });
-
-      if (!assignee) {
-        throw new BadRequestException(
-          'Assignee must be a member of this project',
-        );
-      }
+      await this.assertEligibleAssignee(membership.role, organizationId, task.projectId, assigneeId);
     }
 
     const normalizedAssigneeId = assigneeId ?? null;
@@ -735,16 +716,31 @@ export class TasksService {
       throw new BadRequestException('Invalid task status transition');
     }
 
+    if (membership.role === Role.EMPLOYEE && task.status === TaskStatus.IN_REVIEW) {
+      throw new ForbiddenException('Only admins and managers can review submitted work');
+    }
+
     const updatedTask = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const updatedTask = await tx.task.update({
-        where: { id: taskId },
+      if (status === TaskStatus.IN_PROGRESS || status === TaskStatus.DONE) {
+        const projectRows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Project" WHERE id = ${task.projectId} AND "organizationId" = ${organizationId} FOR UPDATE`;
+        if (projectRows.length !== 1) throw new NotFoundException('Project not found');
+        const blockers = await tx.taskDependency.count({
+          where: { organizationId, projectId: task.projectId, taskId, blockingTask: { deletedAt: null, status: { not: TaskStatus.DONE } } },
+        });
+        if (blockers > 0) throw new ConflictException('Complete blocking tasks before starting work');
+      }
+      const changed = await tx.task.updateMany({
+        where: { id: taskId, organizationId, projectId: task.projectId, deletedAt: null, status: task.status },
         data: { status },
       });
+      if (changed.count !== 1) throw new ConflictException('Task status changed; refresh and try again');
+      const updatedTask = await tx.task.findUniqueOrThrow({ where: { id: taskId } });
 
       await this.recordActivity(tx, taskId, organizationId, userId,
-        (task as typeof task & { parentId?: string | null }).parentId
-          ? status === TaskStatus.DONE ? 'SUBTASK_COMPLETED' : 'SUBTASK_STATUS_CHANGED'
-          : 'TASK_STATUS_CHANGED',
+        task.status === TaskStatus.IN_REVIEW && status === TaskStatus.DONE ? 'TASK_APPROVED'
+          : task.status === TaskStatus.IN_REVIEW && status === TaskStatus.IN_PROGRESS ? 'TASK_CHANGES_REQUESTED'
+          : (task as typeof task & { parentId?: string | null }).parentId
+            ? 'SUBTASK_STATUS_CHANGED' : 'TASK_STATUS_CHANGED',
         { old: task.status, new: status });
 
       if (task.createdById !== userId) {
@@ -754,6 +750,14 @@ export class TasksService {
           taskId,
           type: NotificationType.TASK_STATUS_CHANGED,
           message: `Task "${updatedTask.title}" status changed to ${status}`,
+        });
+      }
+
+      if (task.status === TaskStatus.IN_REVIEW && task.assigneeId && task.assigneeId !== userId && task.assigneeId !== task.createdById) {
+        await this.notificationsService.createForRecipient(tx, {
+          organizationId, recipientId: task.assigneeId, taskId,
+          type: NotificationType.TASK_STATUS_CHANGED,
+          message: `Task "${updatedTask.title}" ${status === TaskStatus.DONE ? 'approved' : 'returned for changes'}`,
         });
       }
 
@@ -973,6 +977,17 @@ export class TasksService {
     };
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const now = new Date();
+      const projectRows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Project" WHERE id = ${task.projectId} AND "organizationId" = ${organizationId} FOR UPDATE`;
+      if (projectRows.length !== 1) throw new NotFoundException('Project not found');
+      const affectedTasks = requiredParentId ? [taskId] : [taskId, ...(await tx.task.findMany({
+        where: { parentId: taskId, organizationId, projectId: task.projectId, deletedAt: null },
+        select: { id: true },
+      })).map((child) => child.id)];
+      const linkedDependencies = await tx.taskDependency.count({
+        where: { organizationId, projectId: task.projectId,
+          OR: [{ taskId: { in: affectedTasks } }, { blockingTaskId: { in: affectedTasks } }] },
+      });
+      if (linkedDependencies > 0) throw new ConflictException('Remove task dependencies before deleting this task');
       if (requiredParentId) {
         const descendants = await tx.task.count({ where: { parentId: taskId, organizationId, deletedAt: null } });
         if (descendants > 0) throw new BadRequestException('Subtask has child tasks');

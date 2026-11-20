@@ -17,6 +17,7 @@ function setup() {
   const prisma = {
     organizationMember: {
       findUnique: vi.fn().mockResolvedValue({ role: Role.ADMIN }),
+      findMany: vi.fn().mockResolvedValue([{ organizationId: ORG, role: Role.ADMIN }]),
     },
     notification: {
       findMany: vi.fn().mockResolvedValue([]),
@@ -56,6 +57,41 @@ function setup() {
 }
 
 describe('NotificationsService', () => {
+  describe('streamChanges', () => {
+    it('reads only the recipient and currently accessible organizations and tasks', async () => {
+      const { service, prisma } = setup();
+      const after = { createdAt: new Date('2026-10-20T10:00:00.000Z'), id: 'cursor' };
+      await service.streamChanges(USER, after);
+      expect(prisma.organizationMember.findMany).toHaveBeenCalledWith({
+        where: { userId: USER }, select: { organizationId: true, role: true },
+      });
+      expect(prisma.notification.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          recipientId: USER,
+          OR: [{ organizationId: ORG, task: { deletedAt: null } }],
+        }),
+        select: { id: true, createdAt: true }, take: 50,
+      }));
+    });
+
+    it('does not query notifications without current organization membership', async () => {
+      const { service, prisma } = setup();
+      prisma.organizationMember.findMany.mockResolvedValue([]);
+      expect(await service.streamChanges(USER, { createdAt: new Date(), id: '' })).toEqual([]);
+      expect(prisma.notification.findMany).not.toHaveBeenCalled();
+    });
+
+    it('applies project membership for employee streams', async () => {
+      const { service, prisma } = setup();
+      prisma.organizationMember.findMany.mockResolvedValue([{ organizationId: ORG, role: Role.EMPLOYEE }]);
+      await service.streamChanges(USER, { createdAt: new Date(), id: '' });
+      expect(prisma.notification.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ OR: [{ organizationId: ORG,
+          task: { deletedAt: null, project: { members: { some: { userId: USER, organizationId: ORG } } } },
+        }] }),
+      }));
+    });
+  });
   describe('createForRecipient', () => {
     it('creates a notification when the recipient belongs to the organization', async () => {
       const { service, tx } = setup();

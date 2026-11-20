@@ -242,6 +242,8 @@ model Task {
   activities    TaskActivity[]
   notifications Notification[]
   reminders     TaskReminder[]
+  dependencies  TaskDependency[] @relation("DependentTask")
+  dependents    TaskDependency[] @relation("BlockingTask")
   project       Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
   parent        Task?              @relation("TaskSubtasks", fields: [parentId, organizationId, projectId], references: [id, organizationId, projectId], onDelete: Restrict)
   subtasks      Task[]             @relation("TaskSubtasks")
@@ -257,6 +259,20 @@ model Task {
   @@index([dueDate])
   @@index([organizationId])
   @@index([parentId])
+}
+
+model TaskDependency {
+  organizationId String
+  projectId String
+  taskId String
+  blockingTaskId String
+  createdAt DateTime @default(now())
+
+  task Task @relation("DependentTask", fields: [taskId, organizationId, projectId], references: [id, organizationId, projectId], onDelete: Restrict)
+  blockingTask Task @relation("BlockingTask", fields: [blockingTaskId, organizationId, projectId], references: [id, organizationId, projectId], onDelete: Restrict)
+
+  @@id([taskId, blockingTaskId])
+  @@index([organizationId, projectId, blockingTaskId])
 }
 
 // ============================================================

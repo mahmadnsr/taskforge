@@ -41,12 +41,12 @@ bash staging/stage.sh smoke --approve-local-target
 bash staging/stage.sh invitation-e2e --approve-local-target
 node staging/validate-frontend-graphql.mjs
 node staging/functional-qa.e2e.mjs
+node staging/browser-smoke.mjs
 ```
 
 `status` may exit nonzero while migrations are pending. On a brand-new empty
 database, `migrate` applies **all** repository migrations in timestamp order;
-the final two are `20261119145513_add_subtasks_checklists_activity` and
-`20261120000000_enforce_task_subtask_integrity`. The migration tool image is
+the task-dependency migration is `20261120190000_add_task_dependencies`. The migration tool image is
 rebuilt immediately before deployment, so the latest migration directories
 are included. `history` lists the recorded migration
 names and completion state. `start-app` refuses to run while Prisma reports
@@ -74,7 +74,12 @@ checks the employee membership. Its test records remain in the staging database.
 staging schema. `functional-qa.e2e.mjs` creates unique local test accounts and
 exercises the full API workflow, analytics, and authorization boundaries; its
 test records also remain in the staging database. These scripts verify HTTP/API
-behavior and do not perform browser interaction.
+behavior and do not perform browser interaction. `browser-smoke.mjs` uses local
+headless Chrome to click between Login and Register, sign in with a fresh
+staging account, and add/remove a dependency in Task Details. It also checks
+the login button cursor and verifies that a comment from a second user raises
+the recipient's notification indicator without a page refresh. Its fixture
+records remain in staging.
 The staging Nginx configuration disables access logs so invitation tokens in
 the URL are not written there.
 

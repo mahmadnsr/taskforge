@@ -9,7 +9,8 @@ TaskForge is a multi-tenant team task application. An organization admin creates
 - Projects, project members, tasks, one-level subtasks, checklists, comments, and activity history.
 - Task assignment, guarded status transitions, soft deletion, and due date reminders.
 - Dashboard summaries, task and project progress, project health, and employee workload analytics.
-- In-app notifications with read state, plus background email delivery.
+- Persisted in-app notifications with a live SSE update stream and read state, plus background email delivery.
+- Same-project task dependencies with cycle prevention and blocked-work checks.
 
 ## Stack and architecture
 
@@ -25,9 +26,13 @@ The browser calls the GraphQL API. Prisma stores application data in PostgreSQL.
 
 ## Authentication and access
 
-Registration creates a user and an organization with an ADMIN membership. Invitations can add MANAGER and EMPLOYEE members. Passwords are hashed, access uses JWTs, and refresh tokens are stored as hashes and rotated. Protected GraphQL operations check the caller's organization membership; non-admin project and task access also checks project membership. Employees can advance their own assigned tasks and complete assigned checklist items, while management actions require the appropriate role. The backend enforces these rules independently of UI controls.
+Registration creates a user and an organization with an ADMIN membership. Only ADMIN can invite MANAGER and EMPLOYEE organization members. An ADMIN appoints a project manager by adding that MANAGER to the Project Team; this MVP has no separate primary-manager field. A MANAGER can add or remove existing organization EMPLOYEEs on an authorized project's team and assign tasks only to those project employees. ADMIN can manage project teams and assign tasks to project members of any organization role. EMPLOYEEs cannot invite members, manage project teams, create tasks, or assign tasks; they can advance their own assigned tasks and complete assigned checklist items. Removing a project member with assigned tasks requires reassignment first.
+
+Passwords are hashed, access uses JWTs, and refresh tokens are stored as hashes and rotated. Protected GraphQL operations check the caller's organization membership; non-admin project and task access also checks project membership. The backend enforces these rules independently of UI controls.
 
 Every project, task, subtask, checklist item, comment, notification, and activity record is scoped to an organization. Service queries apply organization and, where required, project access checks. Database constraints reinforce subtask organization/project consistency and a single subtask level.
+
+Assigned employees can move work from TODO to IN_PROGRESS and submit it as IN_REVIEW. An ADMIN or project-authorized MANAGER approves submitted work as DONE or returns it to IN_PROGRESS for changes. Review decisions create activity records and notify the assignee. Status writes use a conditional update so competing review decisions cannot both succeed.
 
 ## Progress and analytics
 

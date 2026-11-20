@@ -3,6 +3,7 @@ import type { DocumentNode } from 'graphql'
 import { useEffect, useRef, useState } from 'react'
 import {
   ADD_CHECKLIST_ITEM, ASSIGN_SUBTASK, CHANGE_SUBTASK_STATUS, CREATE_SUBTASK,
+  ADD_TASK_DEPENDENCY, DEPENDENCY_CANDIDATES, REMOVE_TASK_DEPENDENCY, TASK_DEPENDENCIES,
   DELETE_CHECKLIST_ITEM, DELETE_SUBTASK, REORDER_CHECKLIST_ITEMS,
   SET_CHECKLIST_ITEM_COMPLETED, SUBTASKS, TASK_ACTIVITY, TASK_CHECKLIST, TASK_DETAILS_PROJECT_MEMBERS,
   UPDATE_CHECKLIST_ITEM, UPDATE_SUBTASK,
@@ -30,6 +31,7 @@ const nextStatuses: Record<Status, Status[]> = {
 const activityLabels: Record<string, string> = {
   TASK_CREATED: 'created the task', TASK_UPDATED: 'updated task details',
   TASK_STATUS_CHANGED: 'changed task status', TASK_ASSIGNED: 'changed assignment',
+  TASK_APPROVED: 'approved the work', TASK_CHANGES_REQUESTED: 'requested changes',
   TASK_PRIORITY_CHANGED: 'changed priority', TASK_DEADLINE_CHANGED: 'changed deadline',
   SUBTASK_CREATED: 'created a subtask', SUBTASK_UPDATED: 'updated a subtask',
   SUBTASK_STATUS_CHANGED: 'changed subtask status', SUBTASK_COMPLETED: 'completed a subtask',
@@ -41,6 +43,13 @@ const activityLabels: Record<string, string> = {
 }
 const inputClass = 'min-h-10 w-full rounded-xl border border-white/10 bg-[#080808] px-3 py-2 text-sm text-zinc-200 outline-none focus:border-teal-500/50'
 const buttonClass = 'rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40'
+const primaryButtonClass = 'rounded-lg bg-teal-500 px-3 py-2 text-xs font-semibold text-black transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-40'
+const successMessages: Record<string, string> = {
+  createSubtask: 'Subtask added.', updateSubtask: 'Subtask updated.', deleteSubtask: 'Subtask deleted.',
+  status: 'Subtask status updated.', assign: 'Subtask assignment updated.',
+  addItem: 'Checklist item added.', editItem: 'Checklist item updated.', deleteItem: 'Checklist item deleted.',
+  completeItem: 'Checklist completion updated.', reorder: 'Checklist order updated.',
+}
 
 function message(error: unknown) {
   return error instanceof Error ? error.message : 'Please try again.'
@@ -120,16 +129,20 @@ function ActivityTimeline({ organizationId, taskId, refreshKey }: { organization
   )
 }
 
-export function TaskDetailsPanel({ task, organizationId, role, userId, onClose, onTaskChanged }: {
+export function TaskDetailsPanel({ task, organizationId, role, userId, eligibleAssigneeIds = [], assigneesReady = true, onClose, onTaskChanged }: {
   task: Task; organizationId: string; role: 'ADMIN' | 'MANAGER' | 'EMPLOYEE' | undefined
-  userId: string | undefined; onClose: () => void; onTaskChanged: () => void
+  userId: string | undefined; eligibleAssigneeIds?: string[]; assigneesReady?: boolean
+  onClose: () => void; onTaskChanged: () => void
 }) {
   const client = useApolloClient()
   const canManage = role === 'ADMIN' || role === 'MANAGER'
   const canComplete = canManage || (role === 'EMPLOYEE' && task.assigneeId === userId)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [activityRefresh, setActivityRefresh] = useState(0)
+  const [showSubtaskForm, setShowSubtaskForm] = useState(false)
+  const [showChecklistForm, setShowChecklistForm] = useState(false)
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
   const [editSubtaskId, setEditSubtaskId] = useState('')
   const [historySubtaskId, setHistorySubtaskId] = useState('')
@@ -138,6 +151,8 @@ export function TaskDetailsPanel({ task, organizationId, role, userId, onClose, 
   const [editPriority, setEditPriority] = useState<Priority>('MEDIUM')
   const [editDueDate, setEditDueDate] = useState('')
   const [newItem, setNewItem] = useState('')
+  const [dependencySearch, setDependencySearch] = useState('')
+  const [selectedBlocker, setSelectedBlocker] = useState('')
   const [editItemId, setEditItemId] = useState('')
   const [editItemContent, setEditItemContent] = useState('')
   const scope = { organizationId, taskId: task.id }
@@ -151,22 +166,32 @@ export function TaskDetailsPanel({ task, organizationId, role, userId, onClose, 
   const taskProgress = useQuery<{ taskProgress: { percent: number; checklistPercent: number; subtasksCompleted: number; subtasksTotal: number; subtaskPercent: number } }>(TASK_PROGRESS, {
     variables: { input: { organizationId, taskId: task.id } }, fetchPolicy: 'cache-and-network',
   })
+  const dependencies = useQuery<{ taskDependencies: { blockingTaskId: string; blockingTitle: string; blockingStatus: Status }[] }>(TASK_DEPENDENCIES, {
+    variables: { organizationId, taskId: task.id }, fetchPolicy: 'cache-and-network',
+  })
+  const candidates = useQuery<{ searchProjectTasks: { tasks: { id: string; title: string; status: Status }[] } }>(DEPENDENCY_CANDIDATES, {
+    variables: { organizationId, projectId: task.projectId, filters: { search: dependencySearch || undefined, limit: 100 } },
+    skip: !canManage, fetchPolicy: 'cache-and-network',
+  })
   const members = useQuery<{ projectMembers: { user: { id: string; name: string } | null }[] }>(TASK_DETAILS_PROJECT_MEMBERS, {
     variables: { organizationId, projectId: task.projectId }, skip: !canManage,
   })
+  const eligibleIds = new Set(eligibleAssigneeIds)
 
   async function execute(name: string, mutation: DocumentNode, variables: Record<string, unknown>, refresh: 'subtasks' | 'checklist') {
     if (busy) return false
     setBusy(name)
     setError('')
+    setNotice('')
     try {
       await client.mutate({ mutation, variables })
       if (refresh === 'subtasks') {
         await subtasks.refetch()
-        onTaskChanged()
       } else await checklist.refetch()
       await taskProgress.refetch()
+      onTaskChanged()
       setActivityRefresh((value) => value + 1)
+      setNotice(successMessages[name] ?? 'Task requirements updated.')
       return true
     } catch (cause) {
       setError(message(cause))
@@ -186,6 +211,21 @@ export function TaskDetailsPanel({ task, organizationId, role, userId, onClose, 
     await execute('reorder', REORDER_CHECKLIST_ITEMS, { input: { ...scope, itemIds: next.map((item) => item.id) } }, 'checklist')
   }
 
+  async function changeDependency(name: 'add' | 'remove', blockingTaskId: string) {
+    if (busy) return
+    setBusy(`dependency-${name}`)
+    setError('')
+    setNotice('')
+    try {
+      await client.mutate({ mutation: name === 'add' ? ADD_TASK_DEPENDENCY : REMOVE_TASK_DEPENDENCY,
+        variables: { organizationId, taskId: task.id, blockingTaskId } })
+      await dependencies.refetch()
+      setSelectedBlocker('')
+      setNotice(name === 'add' ? 'Dependency added.' : 'Dependency removed.')
+    } catch (cause) { setError(message(cause)) }
+    finally { setBusy('') }
+  }
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/80 p-3 backdrop-blur-sm sm:p-6" role="presentation">
       <section role="dialog" aria-modal="true" aria-label={`Details for ${task.title}`} className="my-6 max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-[#101012] p-5 shadow-2xl sm:p-8">
@@ -194,6 +234,7 @@ export function TaskDetailsPanel({ task, organizationId, role, userId, onClose, 
           <button type="button" onClick={onClose} className={buttonClass}>Close</button>
         </header>
         {error && <p role="alert" className="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-300">{error}</p>}
+        {notice && <p role="status" className="mt-4 rounded-xl border border-teal-500/20 bg-teal-500/10 p-3 text-sm text-teal-200">{notice}</p>}
         <div className="mt-6 space-y-9">
           <section aria-label="Task progress" className="space-y-2 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
             <div className="flex justify-between text-sm text-zinc-300"><h3>Task progress</h3><span>{taskProgress.data?.taskProgress.percent ?? 0}%</span></div>
@@ -203,9 +244,12 @@ export function TaskDetailsPanel({ task, organizationId, role, userId, onClose, 
             {taskProgress.data && <p className="text-xs text-zinc-500">Checklist {taskProgress.data.taskProgress.checklistPercent}% · Subtasks {taskProgress.data.taskProgress.subtasksCompleted}/{taskProgress.data.taskProgress.subtasksTotal} complete ({taskProgress.data.taskProgress.subtaskPercent}%)</p>}
           </section>
           {!task.parentId && <section aria-label="Subtasks" className="space-y-4">
-            <h3 className="text-base font-medium text-white">Subtasks</h3>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div><h3 className="text-base font-medium text-white">Subtasks</h3><p className="mt-1 text-xs text-zinc-500">Break this task into trackable work.</p></div>
+              {canManage && !showSubtaskForm && <button type="button" onClick={() => { setShowSubtaskForm(true); setError(''); setNotice('') }} className={primaryButtonClass}>+ Add Subtask</button>}
+            </div>
             {subtasks.loading && !subtasks.data && <p role="status" className="text-sm text-zinc-500">Loading subtasks…</p>}
-            {subtasks.error && <p role="alert" className="text-sm text-rose-300">{message(subtasks.error)}</p>}
+            {subtasks.error && <p role="alert" className="text-sm text-rose-300">{message(subtasks.error)} <button type="button" onClick={() => void subtasks.refetch()} className="underline">Retry</button></p>}
             {!subtasks.loading && !subtasks.error && !subtasks.data?.subtasks.length && <p className="text-sm text-zinc-500">No subtasks yet.</p>}
             <div className="space-y-3">{subtasks.data?.subtasks.map((child) => (
               <article key={child.id} className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
@@ -221,8 +265,8 @@ export function TaskDetailsPanel({ task, organizationId, role, userId, onClose, 
                   <div className="flex gap-2"><button disabled={Boolean(busy)} className={buttonClass}>Save subtask</button><button type="button" onClick={() => setEditSubtaskId('')} className={buttonClass}>Cancel</button></div>
                 </form>}
                 <div className="mt-3 flex flex-wrap gap-3">
-                  {(canManage || (role === 'EMPLOYEE' && child.assigneeId === userId)) && nextStatuses[child.status].length > 0 && <select aria-label={`Status for ${child.title}`} defaultValue="" disabled={Boolean(busy)} onChange={(event) => { const status = event.target.value as Status; if (nextStatuses[child.status].includes(status)) void execute('status', CHANGE_SUBTASK_STATUS, { input: { organizationId, taskId: child.id, status } }, 'subtasks') }} className={inputClass}><option value="">Change status…</option>{nextStatuses[child.status].map((status) => <option key={status} value={status}>{statusLabels[status]}</option>)}</select>}
-                  {canManage && <select aria-label={`Assignee for ${child.title}`} value={child.assigneeId ?? ''} disabled={Boolean(busy) || members.loading || Boolean(members.error)} onChange={(event) => void execute('assign', ASSIGN_SUBTASK, { input: { organizationId, taskId: child.id, assigneeId: event.target.value || null } }, 'subtasks')} className={inputClass}><option value="">Unassigned</option>{members.data?.projectMembers.map(({ user }) => user && <option key={user.id} value={user.id}>{user.name}</option>)}</select>}
+                  {(canManage || (role === 'EMPLOYEE' && child.assigneeId === userId && child.status !== 'IN_REVIEW')) && nextStatuses[child.status].length > 0 && <select aria-label={`Status for ${child.title}`} defaultValue="" disabled={Boolean(busy)} onChange={(event) => { const status = event.target.value as Status; if (nextStatuses[child.status].includes(status)) void execute('status', CHANGE_SUBTASK_STATUS, { input: { organizationId, taskId: child.id, status } }, 'subtasks') }} className={inputClass}><option value="">Change status…</option>{nextStatuses[child.status].map((status) => <option key={status} value={status}>{child.status === 'IN_REVIEW' ? status === 'DONE' ? 'Approve' : 'Request changes' : statusLabels[status]}</option>)}</select>}
+                  {canManage && <select aria-label={`Assignee for ${child.title}`} value={child.assigneeId ?? ''} disabled={Boolean(busy) || members.loading || Boolean(members.error) || !assigneesReady} onChange={(event) => void execute('assign', ASSIGN_SUBTASK, { input: { organizationId, taskId: child.id, assigneeId: event.target.value || null } }, 'subtasks')} className={inputClass}><option value="">Unassigned</option>{members.data?.projectMembers.map(({ user }) => user && (role === 'ADMIN' || eligibleIds.has(user.id)) && <option key={user.id} value={user.id}>{user.name}</option>)}</select>}
                 </div>
                 <button type="button" onClick={() => setHistorySubtaskId((value) => value === child.id ? '' : child.id)} className={`mt-3 ${buttonClass}`}>
                   {historySubtaskId === child.id ? 'Hide history' : 'View history'}
@@ -231,21 +275,42 @@ export function TaskDetailsPanel({ task, organizationId, role, userId, onClose, 
               </article>
             ))}</div>
             {members.error && canManage && <p role="alert" className="text-sm text-rose-300">Could not load project assignees: {message(members.error)}</p>}
-            {canManage && <form onSubmit={(event) => { event.preventDefault(); const title = newSubtaskTitle.trim(); if (!title || title.length > 200) { setError('Subtask title must be 1 to 200 characters.'); return } void execute('createSubtask', CREATE_SUBTASK, { input: { organizationId, projectId: task.projectId, parentId: task.id, title } }, 'subtasks').then((saved) => { if (saved) setNewSubtaskTitle('') }) }} className="flex flex-col gap-2 sm:flex-row"><input aria-label="New subtask title" value={newSubtaskTitle} maxLength={200} onChange={(event) => setNewSubtaskTitle(event.target.value)} placeholder="Add a subtask…" className={inputClass} /><button disabled={Boolean(busy) || !newSubtaskTitle.trim()} className={buttonClass}>Add subtask</button></form>}
+            {canManage && showSubtaskForm && <form aria-label="Add Subtask form" onSubmit={(event) => { event.preventDefault(); const title = newSubtaskTitle.trim(); if (!title || title.length > 200) { setError('Subtask title must be 1 to 200 characters.'); return } void execute('createSubtask', CREATE_SUBTASK, { input: { organizationId, projectId: task.projectId, parentId: task.id, title } }, 'subtasks').then((saved) => { if (saved) { setNewSubtaskTitle(''); setShowSubtaskForm(false) } }) }} className="rounded-xl border border-teal-500/20 bg-teal-500/[0.04] p-3"><label htmlFor="new-subtask-title" className="mb-2 block text-xs font-medium text-zinc-300">Subtask title</label><div className="flex flex-col gap-2 sm:flex-row"><input id="new-subtask-title" aria-label="New subtask title" autoFocus value={newSubtaskTitle} maxLength={200} onChange={(event) => setNewSubtaskTitle(event.target.value)} placeholder="What needs to be done?" className={inputClass} /><button disabled={Boolean(busy) || !newSubtaskTitle.trim()} className={primaryButtonClass}>{busy === 'createSubtask' ? 'Adding…' : 'Add Subtask'}</button><button type="button" disabled={Boolean(busy)} onClick={() => { setShowSubtaskForm(false); setNewSubtaskTitle('') }} className={buttonClass}>Cancel</button></div></form>}
           </section>}
 
           <section aria-label="Checklist" className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-base font-medium text-white">Checklist</h3><span className="text-xs text-zinc-400">{completed}/{total} complete · {progress}%</span></div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-base font-medium text-white">Checklist</h3><p className="mt-1 text-xs text-zinc-500">Define the acceptance steps for this task.</p></div><div className="flex items-center gap-3"><span className="text-xs text-zinc-400">{completed}/{total} complete · {progress}%</span>{canManage && !showChecklistForm && <button type="button" onClick={() => { setShowChecklistForm(true); setError(''); setNotice('') }} className={primaryButtonClass}>+ Add Checklist Item</button>}</div></div>
             <div role="progressbar" aria-label="Checklist progress" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} className="h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-teal-500 transition-all" style={{ width: `${progress}%` }} /></div>
             {checklist.loading && !checklist.data && <p role="status" className="text-sm text-zinc-500">Loading checklist…</p>}
-            {checklist.error && <p role="alert" className="text-sm text-rose-300">{message(checklist.error)}</p>}
+            {checklist.error && <p role="alert" className="text-sm text-rose-300">{message(checklist.error)} <button type="button" onClick={() => void checklist.refetch()} className="underline">Retry</button></p>}
             {!checklist.loading && !checklist.error && items.length === 0 && <p className="text-sm text-zinc-500">No checklist items yet.</p>}
             <ol className="space-y-2">{items.map((item, index) => <li key={item.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-white/[0.08] p-3">
               <input type="checkbox" aria-label={`Complete ${item.content}`} checked={item.completed} disabled={!canComplete || Boolean(busy)} onChange={(event) => void execute('completeItem', SET_CHECKLIST_ITEM_COMPLETED, { input: { ...scope, itemId: item.id, completed: event.target.checked } }, 'checklist')} className="accent-teal-500" />
               {editItemId === item.id ? <form className="flex min-w-0 flex-1 gap-2" onSubmit={(event) => { event.preventDefault(); const content = editItemContent.trim(); if (!content || content.length > 500) { setError('Checklist content must be 1 to 500 characters.'); return } void execute('editItem', UPDATE_CHECKLIST_ITEM, { input: { ...scope, itemId: item.id, content } }, 'checklist').then((saved) => { if (saved) setEditItemId('') }) }}><input aria-label="Edit checklist content" className={inputClass} maxLength={500} value={editItemContent} onChange={(event) => setEditItemContent(event.target.value)} /><button disabled={Boolean(busy)} className={buttonClass}>Save</button></form> : <span className={`min-w-0 flex-1 break-words text-sm ${item.completed ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>{item.content}</span>}
               {canManage && <div className="flex gap-1"><button type="button" aria-label={`Move ${item.content} up`} disabled={Boolean(busy) || index === 0} onClick={() => void reorder(index, -1)} className={buttonClass}>↑</button><button type="button" aria-label={`Move ${item.content} down`} disabled={Boolean(busy) || index === items.length - 1} onClick={() => void reorder(index, 1)} className={buttonClass}>↓</button><button type="button" disabled={Boolean(busy)} onClick={() => { setEditItemId(item.id); setEditItemContent(item.content) }} className={buttonClass}>Edit</button><button type="button" disabled={Boolean(busy)} onClick={() => { if (window.confirm('Delete this checklist item?')) void execute('deleteItem', DELETE_CHECKLIST_ITEM, { input: { ...scope, itemId: item.id } }, 'checklist') }} className={buttonClass}>Delete</button></div>}
             </li>)}</ol>
-            {canManage && <form onSubmit={(event) => { event.preventDefault(); const content = newItem.trim(); if (!content || content.length > 500) { setError('Checklist content must be 1 to 500 characters.'); return } void execute('addItem', ADD_CHECKLIST_ITEM, { input: { ...scope, content } }, 'checklist').then((saved) => { if (saved) setNewItem('') }) }} className="flex flex-col gap-2 sm:flex-row"><input aria-label="New checklist item" className={inputClass} maxLength={500} value={newItem} onChange={(event) => setNewItem(event.target.value)} placeholder="Add a checklist item…" /><button disabled={Boolean(busy) || !newItem.trim()} className={buttonClass}>Add item</button></form>}
+            {canManage && showChecklistForm && <form aria-label="Add Checklist Item form" onSubmit={(event) => { event.preventDefault(); const content = newItem.trim(); if (!content || content.length > 500) { setError('Checklist content must be 1 to 500 characters.'); return } void execute('addItem', ADD_CHECKLIST_ITEM, { input: { ...scope, content } }, 'checklist').then((saved) => { if (saved) { setNewItem(''); setShowChecklistForm(false) } }) }} className="rounded-xl border border-teal-500/20 bg-teal-500/[0.04] p-3"><label htmlFor="new-checklist-item" className="mb-2 block text-xs font-medium text-zinc-300">Checklist item</label><div className="flex flex-col gap-2 sm:flex-row"><input id="new-checklist-item" aria-label="New checklist item" autoFocus className={inputClass} maxLength={500} value={newItem} onChange={(event) => setNewItem(event.target.value)} placeholder="What must be completed?" /><button disabled={Boolean(busy) || !newItem.trim()} className={primaryButtonClass}>{busy === 'addItem' ? 'Adding…' : 'Add Checklist Item'}</button><button type="button" disabled={Boolean(busy)} onClick={() => { setShowChecklistForm(false); setNewItem('') }} className={buttonClass}>Cancel</button></div></form>}
+          </section>
+          <section aria-label="Dependencies" className="space-y-3">
+            <h3 className="text-base font-medium text-white">Dependencies</h3>
+            {dependencies.loading && !dependencies.data && <p role="status" className="text-sm text-zinc-500">Loading dependencies…</p>}
+            {dependencies.error && <p role="alert" className="text-sm text-rose-300">Could not load dependencies. <button type="button" onClick={() => void dependencies.refetch()} className="underline">Retry</button></p>}
+            {!dependencies.loading && !dependencies.error && dependencies.data?.taskDependencies.length === 0 && <p className="text-sm text-zinc-500">No dependencies yet.</p>}
+            <ul className="space-y-2">{dependencies.data?.taskDependencies.map((dependency) =>
+              <li key={dependency.blockingTaskId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-3 text-sm text-zinc-200">
+                <span>{dependency.blockingTitle} · {statusLabels[dependency.blockingStatus]}{dependency.blockingStatus !== 'DONE' && <span className="ml-2 text-amber-400">Blocking</span>}</span>
+                {canManage && <button type="button" disabled={Boolean(busy)} onClick={() => void changeDependency('remove', dependency.blockingTaskId)} className={buttonClass}>Remove</button>}
+              </li>)}</ul>
+            {canManage && <div className="space-y-2 rounded-xl border border-white/10 p-3">
+              <label className="block text-xs text-zinc-400">Find a task in this project<input type="search" value={dependencySearch} onChange={(event) => setDependencySearch(event.target.value)} maxLength={100} className={`mt-2 ${inputClass}`} /></label>
+              <select aria-label="Blocking task" value={selectedBlocker} onChange={(event) => setSelectedBlocker(event.target.value)} disabled={candidates.loading || Boolean(candidates.error)} className={inputClass}>
+                <option value="">Choose a blocking task…</option>
+                {candidates.data?.searchProjectTasks.tasks.filter((candidate) => candidate.id !== task.id && !dependencies.data?.taskDependencies.some((dependency) => dependency.blockingTaskId === candidate.id)).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.title} ({statusLabels[candidate.status]})</option>)}
+              </select>
+              {candidates.loading && <p role="status" className="text-xs text-zinc-500">Loading project tasks…</p>}
+              {candidates.error && <p role="alert" className="text-xs text-rose-300">Could not load project tasks. <button type="button" onClick={() => void candidates.refetch()} className="underline">Retry</button></p>}
+              <button type="button" disabled={!selectedBlocker || Boolean(busy) || candidates.loading || Boolean(candidates.error)} onClick={() => void changeDependency('add', selectedBlocker)} className={primaryButtonClass}>Add dependency</button>
+            </div>}
           </section>
           <ActivityTimeline key={task.id} organizationId={organizationId} taskId={task.id} refreshKey={activityRefresh} />
         </div>

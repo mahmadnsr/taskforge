@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -31,8 +32,11 @@ const TASK = 'task-1';
 
 function setup(role: Role | null = Role.ADMIN) {
   const tx = {
+    $queryRaw: vi.fn().mockResolvedValue([{ id: PROJECT }]),
+    taskDependency: { count: vi.fn().mockResolvedValue(0) },
     taskActivity: { create: vi.fn().mockResolvedValue({ id: 'activity-1' }), findMany: vi.fn().mockResolvedValue([]) },
     task: {
+      findUniqueOrThrow: vi.fn().mockResolvedValue({ id: TASK, organizationId: ORG, projectId: PROJECT, title: 'Prepare report' }),
       create: vi.fn().mockImplementation(async ({ data }) => ({
         id: TASK,
         ...data,
@@ -84,7 +88,7 @@ function setup(role: Role | null = Role.ADMIN) {
     },
 
     projectMember: {
-      findUnique: vi.fn().mockResolvedValue({ id: 'membership-1' }),
+      findUnique: vi.fn().mockResolvedValue({ id: 'membership-1', organizationId: ORG, orgMember: { role: Role.EMPLOYEE } }),
     },
 
     task: {
@@ -258,24 +262,21 @@ describe('TasksService', () => {
       expect(prisma.task.create).not.toHaveBeenCalled();
     });
 
-    it('rejects an EMPLOYEE who is not a project member', async () => {
-      const { service, prisma } = setup(Role.EMPLOYEE);
-      prisma.projectMember.findUnique.mockResolvedValue(null);
+    it.each([undefined, ASSIGNEE, 'admin-1', 'manager-1', 'employee-2'])(
+      'rejects EMPLOYEE task creation with assignee %s',
+      async (assigneeId) => {
+        const { service, prisma, tx } = setup(Role.EMPLOYEE);
 
-      await expect(service.create(USER, input)).rejects.toThrow(
-        'You must be a project member to create tasks',
-      );
+        await expect(service.create(USER, { ...input, assigneeId })).rejects.toThrow(
+          'Only admins and managers can create tasks',
+        );
 
-      expect(prisma.task.create).not.toHaveBeenCalled();
-    });
-
-    it('allows an EMPLOYEE who belongs to the project', async () => {
-      const { service, tx } = setup(Role.EMPLOYEE);
-
-      await service.create(USER, input);
-
-      expect(tx.task.create).toHaveBeenCalled();
-    });
+        expect(prisma.project.findUnique).not.toHaveBeenCalled();
+        expect(prisma.projectMember.findUnique).not.toHaveBeenCalled();
+        expect(tx.task.create).not.toHaveBeenCalled();
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+      },
+    );
 
     it('allows a MANAGER who belongs to the project to create a task', async () => {
       const { service, prisma, tx } = setup(Role.MANAGER);
@@ -325,6 +326,26 @@ describe('TasksService', () => {
           createdById: USER,
         }),
       });
+    });
+
+    it.each([Role.ADMIN, Role.MANAGER])('MANAGER cannot create a task assigned to %s', async (targetRole) => {
+      const { service, prisma, tx } = setup(Role.MANAGER);
+      prisma.projectMember.findUnique.mockResolvedValue({ organizationId: ORG, orgMember: { role: targetRole } });
+
+      await expect(service.create(USER, { ...input, assigneeId: ASSIGNEE })).rejects.toThrow(
+        'Managers can assign tasks only to project employees',
+      );
+      expect(tx.task.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects an assignee from another organization even with a matching project lookup', async () => {
+      const { service, prisma, tx } = setup();
+      prisma.projectMember.findUnique.mockResolvedValue({ organizationId: OTHER_ORG, orgMember: { role: Role.EMPLOYEE } });
+
+      await expect(service.create(USER, { ...input, assigneeId: ASSIGNEE })).rejects.toThrow(
+        'Assignee must be a member of this project',
+      );
+      expect(tx.task.create).not.toHaveBeenCalled();
     });
 
     it('rejects a blank title', async () => {
@@ -1005,10 +1026,20 @@ describe('TasksService', () => {
         service.update(USER, {
           organizationId: ORG,
           taskId: TASK,
-          assigneeId: ASSIGNEE,
+          assigneeId: 'assignee-2',
         }),
       ).rejects.toThrow('Assignee must be a member of this project');
 
+      expect(tx.task.update).not.toHaveBeenCalled();
+    });
+
+    it('MANAGER cannot change task ownership to an ADMIN', async () => {
+      const { service, prisma, tx } = setup(Role.MANAGER);
+      prisma.projectMember.findUnique.mockResolvedValue({ organizationId: ORG, orgMember: { role: Role.ADMIN } });
+
+      await expect(service.update(USER, { organizationId: ORG, taskId: TASK, assigneeId: 'admin-1' })).rejects.toThrow(
+        'Managers can assign tasks only to project employees',
+      );
       expect(tx.task.update).not.toHaveBeenCalled();
     });
 
@@ -1121,15 +1152,36 @@ describe('TasksService', () => {
       });
     });
 
-    it('rejects an EMPLOYEE attempting to assign a task', async () => {
-      const { service, tx } = setup(Role.EMPLOYEE);
+    it.each([Role.ADMIN, Role.MANAGER])('MANAGER cannot assign a task to %s', async (targetRole) => {
+      const { service, prisma, tx } = setup(Role.MANAGER);
+      prisma.projectMember.findUnique.mockResolvedValue({ organizationId: ORG, orgMember: { role: targetRole } });
 
-      await expect(service.assign(USER, assignInput)).rejects.toThrow(
-        ForbiddenException,
+      await expect(service.assign(USER, { ...assignInput, assigneeId: 'target-1' })).rejects.toThrow(
+        'Managers can assign tasks only to project employees',
       );
-
       expect(tx.task.update).not.toHaveBeenCalled();
     });
+
+    it('ADMIN retains the ability to assign a project MANAGER', async () => {
+      const { service, prisma, tx } = setup(Role.ADMIN);
+      prisma.projectMember.findUnique.mockResolvedValue({ organizationId: ORG, orgMember: { role: Role.MANAGER } });
+
+      await service.assign(USER, { ...assignInput, assigneeId: 'manager-1' });
+      expect(tx.task.update).toHaveBeenCalledWith({ where: { id: TASK }, data: { assigneeId: 'manager-1' } });
+    });
+
+    it.each([ASSIGNEE, 'admin-1', 'manager-1', 'employee-2', null])(
+      'rejects an EMPLOYEE attempting to assign a task to %s',
+      async (assigneeId) => {
+        const { service, tx } = setup(Role.EMPLOYEE);
+
+        await expect(service.assign(USER, { ...assignInput, assigneeId })).rejects.toThrow(
+          ForbiddenException,
+        );
+
+        expect(tx.task.update).not.toHaveBeenCalled();
+      },
+    );
 
     it('rejects a user who is not an organization member', async () => {
       const { service, tx } = setup(null);
@@ -1223,8 +1275,8 @@ describe('TasksService', () => {
 
       await service.changeStatus(USER, statusInput);
 
-      expect(tx.task.update).toHaveBeenCalledWith({
-        where: { id: TASK },
+      expect(tx.task.updateMany).toHaveBeenCalledWith({
+        where: { id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null, status: TaskStatus.TODO },
         data: { status: TaskStatus.IN_PROGRESS },
       });
     });
@@ -1306,8 +1358,8 @@ describe('TasksService', () => {
         status: TaskStatus.IN_REVIEW,
       });
 
-      expect(tx.task.update).toHaveBeenCalledWith({
-        where: { id: TASK },
+      expect(tx.task.updateMany).toHaveBeenCalledWith({
+        where: { id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null, status: TaskStatus.IN_PROGRESS },
         data: { status: TaskStatus.IN_REVIEW },
       });
     });
@@ -1328,8 +1380,8 @@ describe('TasksService', () => {
         status: TaskStatus.IN_PROGRESS,
       });
 
-      expect(tx.task.update).toHaveBeenCalledWith({
-        where: { id: TASK },
+      expect(tx.task.updateMany).toHaveBeenCalledWith({
+        where: { id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null, status: TaskStatus.IN_REVIEW },
         data: { status: TaskStatus.IN_PROGRESS },
       });
     });
@@ -1350,10 +1402,32 @@ describe('TasksService', () => {
         status: TaskStatus.DONE,
       });
 
-      expect(tx.task.update).toHaveBeenCalledWith({
-        where: { id: TASK },
+      expect(tx.task.updateMany).toHaveBeenCalledWith({
+        where: { id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null, status: TaskStatus.IN_REVIEW },
         data: { status: TaskStatus.DONE },
       });
+    });
+
+    it.each([TaskStatus.DONE, TaskStatus.IN_PROGRESS])('rejects employee review transition to %s', async (status) => {
+      const { service, prisma, tx } = setup(Role.EMPLOYEE);
+      prisma.task.findFirst.mockResolvedValue({
+        id: TASK, organizationId: ORG, projectId: PROJECT,
+        status: TaskStatus.IN_REVIEW, assigneeId: USER,
+      });
+      await expect(service.changeStatus(USER, { ...statusInput, status })).rejects.toBeInstanceOf(ForbiddenException);
+      expect(tx.task.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects a racing approval without recording activity or notifications', async () => {
+      const { service, prisma, tx, notificationsService } = setup();
+      prisma.task.findFirst.mockResolvedValue({
+        id: TASK, organizationId: ORG, projectId: PROJECT,
+        status: TaskStatus.IN_REVIEW, assigneeId: ASSIGNEE,
+      });
+      tx.task.updateMany.mockResolvedValueOnce({ count: 0 });
+      await expect(service.changeStatus(USER, { ...statusInput, status: TaskStatus.DONE })).rejects.toBeInstanceOf(ConflictException);
+      expect(tx.taskActivity.create).not.toHaveBeenCalled();
+      expect(notificationsService.createForRecipient).not.toHaveBeenCalled();
     });
 
     it('rejects TODO directly to DONE', async () => {
@@ -1466,8 +1540,8 @@ describe('TasksService', () => {
 
       expect(prisma.projectMember.findUnique).toHaveBeenCalled();
 
-      expect(tx.task.update).toHaveBeenCalledWith({
-        where: { id: TASK },
+      expect(tx.task.updateMany).toHaveBeenCalledWith({
+        where: { id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null, status: TaskStatus.TODO },
         data: { status: TaskStatus.IN_PROGRESS },
       });
     });
@@ -1477,8 +1551,8 @@ describe('TasksService', () => {
 
       await service.changeStatus(USER, statusInput);
 
-      expect(tx.task.update).toHaveBeenCalledWith({
-        where: { id: TASK },
+      expect(tx.task.updateMany).toHaveBeenCalledWith({
+        where: { id: TASK, organizationId: ORG, projectId: PROJECT, deletedAt: null, status: TaskStatus.TODO },
         data: { status: TaskStatus.IN_PROGRESS },
       });
 

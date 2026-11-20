@@ -327,12 +327,14 @@ function ProjectMembersModal({
   organizationId,
   onClose,
   canManageMembers,
+  callerRole,
   organizationMembers,
 }: {
   project: Project
   organizationId: string
   onClose: () => void
   canManageMembers: boolean
+  callerRole: 'ADMIN' | 'MANAGER' | undefined
   organizationMembers: OrganizationMember[]
 }) {
   const [selectedUserId, setSelectedUserId] = useState('')
@@ -352,13 +354,16 @@ function ProjectMembersModal({
   const members = data?.projectMembers ?? []
   const memberUserIds = new Set(members.map((m) => m.userId))
 
-  const availableOrgMembers = organizationMembers.filter(
-    (om) => !memberUserIds.has(om.user.id),
-  )
+  const rolesByUserId = new Map(organizationMembers.map((member) => [member.user.id, member.role]))
+  const availableOrgMembers = !loading && !membersError
+    ? organizationMembers.filter((member) =>
+      !memberUserIds.has(member.user.id) &&
+      (callerRole === 'ADMIN' || member.role === 'EMPLOYEE'))
+    : []
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
-    if (!selectedUserId) return
+    if (!canManageMembers || loading || membersError || !availableOrgMembers.some((member) => member.user.id === selectedUserId)) return
     setError('')
     try {
       await addMember({
@@ -376,6 +381,7 @@ function ProjectMembersModal({
   }
 
   async function handleRemove(userId: string) {
+    if (!canManageMembers || (callerRole === 'MANAGER' && rolesByUserId.get(userId) !== 'EMPLOYEE')) return
     setError('')
     try {
       await removeMember({
@@ -402,16 +408,16 @@ function ProjectMembersModal({
       <section
         role="dialog"
         aria-modal="true"
-        aria-label={`Members of ${project.name}`}
+        aria-label={`Project Team for ${project.name}`}
         className="w-full max-w-lg rounded-3xl border border-white/10 bg-[#101012] p-6 shadow-2xl sm:p-8"
       >
         <div className="flex items-start justify-between gap-4 border-b border-white/[0.06] pb-5">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-teal-400">
-              Project membership
+              Project Team
             </p>
             <h2 className="mt-1 text-xl font-light text-white">
-              {project.name} — Members
+              {project.name} — Project Team
             </h2>
           </div>
           <button
@@ -432,11 +438,13 @@ function ProjectMembersModal({
         {canManageMembers && project.status !== 'ARCHIVED' && (
           <form onSubmit={handleAdd} className="mt-6 flex gap-2">
             <select
+              aria-label="Add existing organization member to project team"
               value={selectedUserId}
               onChange={(e) => setSelectedUserId(e.target.value)}
+              disabled={loading || Boolean(membersError)}
               className="h-10 flex-1 rounded-xl border border-white/10 bg-[#080808] px-3 text-xs text-zinc-200 outline-none focus:border-teal-500/50"
             >
-              <option value="">Select organization member to assign…</option>
+              <option value="">{callerRole === 'MANAGER' ? 'Select an existing employee…' : 'Select an organization member…'}</option>
               {availableOrgMembers.map((om) => (
                 <option key={om.id} value={om.user.id}>
                   {om.user?.name ?? om.user.id} ({om.role})
@@ -445,10 +453,10 @@ function ProjectMembersModal({
             </select>
             <button
               type="submit"
-              disabled={!selectedUserId || adding}
+              disabled={!selectedUserId || adding || loading || Boolean(membersError)}
               className="rounded-xl bg-teal-500 px-4 text-xs font-semibold text-black transition hover:bg-teal-400 disabled:opacity-50"
             >
-              {adding ? 'Adding…' : 'Add'}
+              {adding ? 'Adding…' : 'Add to team'}
             </button>
           </form>
         )}
@@ -475,9 +483,10 @@ function ProjectMembersModal({
               >
                 <div>
                   <p className="font-medium text-white">{m.user?.name ?? 'Member'}</p>
-                  <p className="text-[11px] text-zinc-500">{m.user?.email}</p>
+                  <p className="text-[11px] text-zinc-500">{m.user?.email} · {rolesByUserId.get(m.userId) ?? 'Member'}</p>
                 </div>
-                {canManageMembers && project.status !== 'ARCHIVED' && (
+                {canManageMembers && project.status !== 'ARCHIVED' &&
+                  (callerRole === 'ADMIN' || rolesByUserId.get(m.userId) === 'EMPLOYEE') && (
                   <button
                     type="button"
                     onClick={() => handleRemove(m.userId)}
@@ -716,7 +725,7 @@ export default function Projects() {
       ? organizationId
       : organizations[0]?.id ?? ''
 
-  const { data: membersData, error: membersError } = useQuery<
+  const { data: membersData, loading: membersLoading, error: membersError } = useQuery<
     OrganizationMembersData,
     OrganizationVariables
   >(
@@ -731,8 +740,10 @@ export default function Projects() {
   const currentMember = (membersData?.organizationMembers ?? []).find(
     (member) => member.user.id === user?.id,
   )
-  const canCreateProject = currentMember?.role === 'ADMIN'
-  const canViewMemberAnalytics = currentMember?.role === 'ADMIN' || currentMember?.role === 'MANAGER'
+  const currentRole = !membersLoading && !membersError ? currentMember?.role : undefined
+  const canCreateProject = currentRole === 'ADMIN'
+  const canManageTeam = currentRole === 'ADMIN' || currentRole === 'MANAGER'
+  const canViewMemberAnalytics = canManageTeam
 
   const {
     data: projectsData,
@@ -1147,12 +1158,14 @@ export default function Projects() {
                   <h3 className="mt-6 text-[20px] font-light tracking-tight text-white">
                     {search || filter !== 'ALL'
                       ? 'No matching projects'
-                      : 'Your next project starts here'}
+                      : canCreateProject ? 'Your next project starts here' : 'No projects available'}
                   </h3>
                   <p className="mx-auto mt-2.5 max-w-sm text-[14px] font-light leading-relaxed text-zinc-500">
                     {search || filter !== 'ALL'
                       ? 'Try a different search term or change the status filter.'
-                      : 'Create a project to give your team a dedicated place to plan and organize work.'}
+                      : canCreateProject
+                        ? 'Create a project to give your team a dedicated place to plan and organize work.'
+                        : 'Projects will appear here when you are added to a project team.'}
                   </p>
                   {search || filter !== 'ALL' ? (
                     <button
@@ -1165,7 +1178,7 @@ export default function Projects() {
                     >
                       Clear filters
                     </button>
-                  ) : (
+                  ) : canCreateProject ? (
                     <button
                       type="button"
                       onClick={openCreateModal}
@@ -1174,7 +1187,7 @@ export default function Projects() {
                       <Icon name="plus" size={16} />
                       Create your first project
                     </button>
-                  )}
+                  ) : null}
                 </div>
               ) : (
                 <>
@@ -1207,6 +1220,11 @@ export default function Projects() {
                             <p className="mt-2 text-[11px] font-medium tracking-wide text-zinc-600 md:hidden">
                               Created {formatDate(project.createdAt)}
                             </p>
+                            {canManageTeam && (
+                              <button type="button" onClick={() => setMembersProject(project)} className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-teal-400 hover:text-teal-300">
+                                <Icon name="users" size={14} /> Project Team
+                              </button>
+                            )}
                           </div>
                         </div>
 
@@ -1221,19 +1239,6 @@ export default function Projects() {
 
                         <div className="flex items-center justify-start gap-1.5 md:justify-end">
                           <button type="button" onClick={() => setAnalyticsProject(project)} aria-label={`Analytics for ${project.name}`} className="rounded-lg border border-white/10 px-2 py-1 text-xs text-teal-400 transition-colors hover:bg-teal-500/10">Analytics</button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setMutationError('')
-                              setMembersProject(project)
-                            }}
-                            aria-label={`Members of ${project.name}`}
-                            title="Manage project members"
-                            className="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-white/10 hover:text-white"
-                          >
-                            <Icon name="users" size={16} />
-                          </button>
-
                           {canCreateProject && project.status !== 'ARCHIVED' && (
                             <>
                               <button
@@ -1289,13 +1294,14 @@ export default function Projects() {
         />
       )}
 
-      {membersProject && selectedOrganizationId && (
+      {canManageTeam && membersProject && selectedOrganizationId && (
         <ProjectMembersModal
           key={membersProject.id}
           project={membersProject}
           organizationId={selectedOrganizationId}
           onClose={() => setMembersProject(null)}
-          canManageMembers={canCreateProject}
+          canManageMembers={canManageTeam}
+          callerRole={currentRole}
           organizationMembers={membersData?.organizationMembers ?? []}
         />
       )}

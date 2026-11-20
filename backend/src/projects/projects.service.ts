@@ -277,9 +277,11 @@ export class ProjectsService {
     projectId: string,
     targetUserId: string,
   ) {
-    await this.assertAdmin(callerId, organizationId);
+    const role = await this.getRole(callerId, organizationId);
+    if (role === Role.EMPLOYEE) throw new ForbiddenException('Insufficient role');
 
     const project = await this.findScoped(organizationId, projectId);
+    await this.assertProjectAccess(callerId, organizationId, projectId, role);
     if (project.status === ProjectStatus.ARCHIVED) {
       throw new BadRequestException('Archived projects cannot be updated');
     }
@@ -296,6 +298,9 @@ export class ProjectsService {
 
     if (!orgMember) {
       throw new NotFoundException('Member not found');
+    }
+    if (role === Role.MANAGER && orgMember.role !== Role.EMPLOYEE) {
+      throw new ForbiddenException('Managers can add or remove only employees from project teams');
     }
 
     const existing = await this.prisma.projectMember.findUnique({
@@ -338,9 +343,11 @@ export class ProjectsService {
     projectId: string,
     targetUserId: string,
   ): Promise<boolean> {
-    await this.assertAdmin(callerId, organizationId);
+    const role = await this.getRole(callerId, organizationId);
+    if (role === Role.EMPLOYEE) throw new ForbiddenException('Insufficient role');
 
     const project = await this.findScoped(organizationId, projectId);
+    await this.assertProjectAccess(callerId, organizationId, projectId, role);
     if (project.status === ProjectStatus.ARCHIVED) {
       throw new BadRequestException('Archived projects cannot be updated');
     }
@@ -357,25 +364,25 @@ export class ProjectsService {
     if (!existing) {
       throw new NotFoundException('Member not found');
     }
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.task.updateMany({
-        where: {
-          projectId,
-          organizationId,
-          assigneeId: targetUserId,
-        },
-        data: { assigneeId: null },
+    if (role === Role.MANAGER) {
+      const target = await this.prisma.organizationMember.findUnique({
+        where: { userId_organizationId: { userId: targetUserId, organizationId } },
+        select: { role: true },
       });
+      if (target?.role !== Role.EMPLOYEE) {
+        throw new ForbiddenException('Managers can add or remove only employees from project teams');
+      }
+    }
 
-      await tx.projectMember.delete({
-        where: {
-          projectId_userId: {
-            projectId,
-            userId: targetUserId,
-          },
-        },
-      });
+    const assignedTasks = await this.prisma.task.count({
+      where: { projectId, organizationId, assigneeId: targetUserId },
+    });
+    if (assignedTasks > 0) {
+      throw new ConflictException('Reassign tasks before removing this project member');
+    }
+
+    await this.prisma.projectMember.delete({
+      where: { projectId_userId: { projectId, userId: targetUserId } },
     });
 
     return true;

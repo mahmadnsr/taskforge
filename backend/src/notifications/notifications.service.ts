@@ -87,6 +87,31 @@ export class NotificationsService {
       : { deletedAt: null, project: { members: { some: { userId, organizationId } } } };
   }
 
+  // The database is the source of truth for streams. This also works when the
+  // writer and the connected client are served by different API instances.
+  async streamChanges(userId: string, after: { createdAt: Date; id: string }) {
+    const memberships = await this.prisma.organizationMember.findMany({
+      where: { userId }, select: { organizationId: true, role: true },
+    });
+    if (memberships.length === 0) return [];
+    return this.prisma.notification.findMany({
+      where: {
+        recipientId: userId,
+        OR: memberships.map(({ organizationId, role }) => ({
+          organizationId,
+          task: this.visibleTask(userId, organizationId, role),
+        })),
+        AND: [{ OR: [
+          { createdAt: { gt: after.createdAt } },
+          { createdAt: after.createdAt, id: { gt: after.id } },
+        ] }],
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: 50,
+      select: { id: true, createdAt: true },
+    });
+  }
+
   async findMyNotifications(
     userId: string,
     input: NotificationsPaginationInput,

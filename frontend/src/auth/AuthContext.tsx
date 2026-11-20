@@ -118,6 +118,7 @@ export type AuthContextValue = {  user: User | null
     invitationToken: string,
   ) => Promise<void>
   logout: () => Promise<void>
+  refreshAccessToken: () => Promise<boolean>
 }
 
 
@@ -283,6 +284,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [runLogout])
 
+  const refreshAccessToken = useCallback(async () => {
+    const payload = await restoreSession()
+    if (payload) {
+      setUser(payload.user)
+      return true
+    }
+    setUser(null)
+    await apolloClient.clearStore()
+    return false
+  }, [])
+
   const value = useMemo(
     () => ({
       user,
@@ -292,6 +304,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       registerWithInvitation,
       logout,
+      refreshAccessToken,
     }),
     [
       user,
@@ -300,6 +313,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       registerWithInvitation,
       logout,
+      refreshAccessToken,
     ],
   )
 

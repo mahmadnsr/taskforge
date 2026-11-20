@@ -8,6 +8,7 @@ import {
   MenuIcon, UsersIcon,
 } from '../components/icons'
 import { Logo } from '../components/Logo' // Reusable Logo Import
+import { useNotificationStream } from '../hooks/useNotificationStream'
 
 
 const navigation = [
@@ -35,6 +36,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const { user, logout } = useAuth()
+  const { hasUpdate, clearUpdate } = useNotificationStream()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -193,10 +195,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <div className="ml-auto flex items-center gap-3">
             <NavLink
               to="/inbox"
+              onClick={clearUpdate}
               title="Notifications"
               className="relative flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-white/10 hover:text-white"
             >
               <BellIcon className="h-5 w-5" />
+              {hasUpdate && <span aria-label="New notifications" className="absolute right-1 top-1 h-2 w-2 rounded-full bg-teal-400" />}
             </NavLink>
 
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-800 text-[12px] font-medium text-zinc-300 ring-1 ring-white/10 transition-transform hover:scale-105">

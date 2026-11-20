@@ -76,25 +76,12 @@ describe('InvitationsService.inviteMember', () => {
     expect(emailSend).toHaveBeenCalledOnce();
   });
 
-  it('MANAGER can invite an EMPLOYEE', async () => {
-    memberFindUnique.mockResolvedValue({ role: 'MANAGER' });
-
-    const res = await service.inviteMember('u1', input({ role: 'EMPLOYEE' }));
-
-    expect(res.role).toBe('EMPLOYEE');
-    expect(emailSend).toHaveBeenCalledOnce();
-  });
-
-  it('MANAGER cannot invite MANAGER or ADMIN', async () => {
+  it.each(['EMPLOYEE', 'MANAGER', 'ADMIN'])('MANAGER cannot invite %s', async (role) => {
     memberFindUnique.mockResolvedValue({ role: 'MANAGER' });
 
     await expect(
-      service.inviteMember('u1', input({ role: 'MANAGER' })),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-
-    await expect(
-      service.inviteMember('u1', input({ role: 'ADMIN' })),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+      service.inviteMember('u1', input({ role })),
+    ).rejects.toThrow('Only organization admins can invite members');
 
     expect(inviteCreate).not.toHaveBeenCalled();
     expect(emailSend).not.toHaveBeenCalled();
@@ -105,7 +92,7 @@ describe('InvitationsService.inviteMember', () => {
 
     await expect(
       service.inviteMember('u1', input()),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toThrow('Only organization admins can invite members');
 
     expect(inviteCreate).not.toHaveBeenCalled();
     expect(emailSend).not.toHaveBeenCalled();

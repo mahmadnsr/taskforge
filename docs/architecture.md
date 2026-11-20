@@ -5,6 +5,7 @@ TaskForge is a React single-page application backed by a NestJS GraphQL API and 
 ```mermaid
 flowchart LR
   Browser[React + Apollo Client] -->|GraphQL over HTTP| API[NestJS API]
+  Browser -->|Bearer authenticated SSE| API
   API -->|Prisma transactions and queries| DB[(PostgreSQL)]
   API -->|enqueue when appropriate| Queue[(Redis / BullMQ)]
   DB -->|pending outbox events| Dispatcher[Outbox dispatcher]
@@ -20,11 +21,17 @@ The Vite/TypeScript frontend uses Apollo Client for GraphQL operations and React
 
 ## PostgreSQL and tenant boundaries
 
-Prisma models organization membership separately from project membership. Organizations contain projects; tasks belong to both an organization and project, and may have one parent task. Checklist items, comments, activity, notifications, reminders, and outbox records reference their owning work. The backend scopes lookups by organization ID and checks project membership for non-admin access. SQL constraints enforce one-level subtask hierarchy and organization/project consistency. Task deletion is soft; activity is retained for audit, while normal task and notification reads exclude deleted tasks.
+Prisma models organization membership separately from project membership. Organizations contain projects; tasks belong to both an organization and project, and may have one parent task. Project Team uses existing project membership: adding a MANAGER appoints that manager to the project for this MVP, without a separate primary-manager field. Task assignment points to a project member and does not create membership. Checklist items, comments, activity, notifications, reminders, and outbox records reference their owning work. The backend scopes lookups by organization ID and checks project membership for non-admin access. SQL constraints enforce one-level subtask hierarchy and organization/project consistency. Task deletion is soft; activity is retained for audit, while normal task and notification reads exclude deleted tasks.
 
 ## Authentication and authorization
 
-Registration creates the first ADMIN user and organization. Invitation tokens are validated against recipient email and consumption state. Passwords are hashed. Login issues a short-lived JWT and a refresh token; only the refresh token hash is stored in PostgreSQL. Refresh rotates it, and logout revokes it. GraphQL guards require authentication and rate-limit operations. Service-level role checks distinguish ADMIN, MANAGER, and EMPLOYEE actions. UI controls reflect permissions but do not grant them.
+Registration creates the first ADMIN user and organization. Only ADMIN can invite organization members and choose their roles. ADMIN can manage any project team; a MANAGER can add or remove existing organization EMPLOYEEs only on projects they manage. MANAGER task assignees must be EMPLOYEE project members, while ADMIN can assign any project member. EMPLOYEEs cannot manage teams or task ownership. Invitation tokens are validated against recipient email and consumption state. Passwords are hashed. Login issues a short-lived JWT and a refresh token; only the refresh token hash is stored in PostgreSQL. Refresh rotates it, and logout revokes it. GraphQL guards require authentication and rate-limit operations. UI controls reflect permissions but do not grant them.
+
+## Task dependencies and live notifications
+
+Notification rows are written in PostgreSQL with task changes. A bearer-authenticated SSE endpoint polls those persisted rows for the current recipient, applying organization and project visibility on every poll. It sends change signals without message contents; Apollo refetches the inbox and unread count. This works across API instances without Redis pub/sub, and a periodic sync reconciles reconnect and transaction-timestamp races. The browser keeps the access token in a header, reconnects with backoff, refreshes expired access tokens, and aborts streams on logout.
+
+Task dependencies are directed edges between nondeleted tasks in one project. Composite foreign keys enforce organization and project equality for both ends. ADMIN and project MANAGER mutations take a PostgreSQL project-row lock before reading the graph and checking cycles; status transitions use the same lock before checking incomplete blockers. Linked tasks cannot be soft-deleted until their edges are removed. Dependencies do not change the existing progress formula.
 
 ## Background processing and email
 

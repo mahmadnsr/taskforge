@@ -47,6 +47,7 @@ function setup(role: Role | null) {
     },
     task: {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      count: vi.fn().mockResolvedValue(0),
     },
     $transaction: vi.fn().mockImplementation(async (cb) => cb(tx)),
   };
@@ -378,11 +379,21 @@ describe('ProjectsService', () => {
   });
 
   describe('project membership management', () => {
-    it('only ADMIN can add project members', async () => {
-      const { service } = setup(Role.MANAGER);
+    it('EMPLOYEE cannot add project members', async () => {
+      const { service, prisma } = setup(Role.EMPLOYEE);
       await expect(
         service.addMember(USER, ORG, PID, 'u-target'),
       ).rejects.toThrow(ForbiddenException);
+      expect(prisma.projectMember.create).not.toHaveBeenCalled();
+    });
+
+    it('MANAGER cannot manage another project team', async () => {
+      const { service, prisma } = setup(Role.MANAGER);
+      prisma.project.findFirst.mockResolvedValue(active);
+      await expect(service.addMember(USER, ORG, PID, 'u-target')).rejects.toThrow(ForbiddenException);
+      await expect(service.removeMember(USER, ORG, PID, 'u-target')).rejects.toThrow(ForbiddenException);
+      expect(prisma.projectMember.create).not.toHaveBeenCalled();
+      expect(prisma.projectMember.delete).not.toHaveBeenCalled();
     });
 
     it('rejects adding member if project is archived', async () => {
@@ -454,6 +465,26 @@ describe('ProjectsService', () => {
       });
     });
 
+    it('MANAGER adds an existing organization EMPLOYEE to an authorized project', async () => {
+      const { service, prisma } = setup(Role.MANAGER);
+      prisma.project.findFirst.mockResolvedValue(active);
+      prisma.projectMember.findFirst.mockResolvedValue({ id: 'caller-membership' });
+      prisma.organizationMember.findUnique.mockResolvedValue({ role: Role.EMPLOYEE, user: { id: 'u-target' } });
+
+      await expect(service.addMember(USER, ORG, PID, 'u-target')).resolves.toMatchObject({ userId: 'u-target' });
+      expect(prisma.projectMember.create).toHaveBeenCalledOnce();
+    });
+
+    it.each([Role.ADMIN, Role.MANAGER])('MANAGER cannot add a %s to a project team', async (targetRole) => {
+      const { service, prisma } = setup(Role.MANAGER);
+      prisma.project.findFirst.mockResolvedValue(active);
+      prisma.projectMember.findFirst.mockResolvedValue({ id: 'caller-membership' });
+      prisma.organizationMember.findUnique.mockResolvedValue({ role: targetRole, user: { id: 'u-target' } });
+
+      await expect(service.addMember(USER, ORG, PID, 'u-target')).rejects.toThrow(ForbiddenException);
+      expect(prisma.projectMember.create).not.toHaveBeenCalled();
+    });
+
     it('only ADMIN can remove project members', async () => {
       const { service } = setup(Role.EMPLOYEE);
       await expect(
@@ -461,7 +492,7 @@ describe('ProjectsService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('removes project member and unassigns tasks in transaction', async () => {
+    it('removes an unassigned project member without changing task ownership', async () => {
       const { service, prisma } = setup(Role.ADMIN);
       prisma.project.findFirst.mockResolvedValue(active);
       prisma.projectMember.findUnique.mockResolvedValue({
@@ -472,7 +503,43 @@ describe('ProjectsService', () => {
 
       const result = await service.removeMember(USER, ORG, PID, 'u-target');
       expect(result).toBe(true);
-      expect(prisma.$transaction).toHaveBeenCalledOnce();
+      expect(prisma.task.count).toHaveBeenCalledWith({ where: { projectId: PID, organizationId: ORG, assigneeId: 'u-target' } });
+      expect(prisma.projectMember.delete).toHaveBeenCalledOnce();
+      expect(prisma.task.updateMany).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects removal while any tasks still belong to the project member', async () => {
+      const { service, prisma } = setup(Role.ADMIN);
+      prisma.project.findFirst.mockResolvedValue(active);
+      prisma.projectMember.findUnique.mockResolvedValue({ id: 'pm-1' });
+      prisma.task.count.mockResolvedValue(1);
+
+      await expect(service.removeMember(USER, ORG, PID, 'u-target')).rejects.toThrow('Reassign tasks before removing this project member');
+      expect(prisma.projectMember.delete).not.toHaveBeenCalled();
+      expect(prisma.task.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('MANAGER removes an unassigned EMPLOYEE from an authorized project', async () => {
+      const { service, prisma } = setup(Role.MANAGER);
+      prisma.project.findFirst.mockResolvedValue(active);
+      prisma.projectMember.findFirst.mockResolvedValue({ id: 'caller-membership' });
+      prisma.projectMember.findUnique.mockResolvedValue({ id: 'pm-1' });
+      prisma.organizationMember.findUnique.mockResolvedValue({ role: Role.EMPLOYEE });
+
+      await expect(service.removeMember(USER, ORG, PID, 'u-target')).resolves.toBe(true);
+      expect(prisma.projectMember.delete).toHaveBeenCalledOnce();
+    });
+
+    it.each([Role.ADMIN, Role.MANAGER])('MANAGER cannot remove a %s from a project team', async (targetRole) => {
+      const { service, prisma } = setup(Role.MANAGER);
+      prisma.project.findFirst.mockResolvedValue(active);
+      prisma.projectMember.findFirst.mockResolvedValue({ id: 'caller-membership' });
+      prisma.projectMember.findUnique.mockResolvedValue({ id: 'pm-1' });
+      prisma.organizationMember.findUnique.mockResolvedValue({ role: targetRole });
+
+      await expect(service.removeMember(USER, ORG, PID, 'u-target')).rejects.toThrow(ForbiddenException);
+      expect(prisma.projectMember.delete).not.toHaveBeenCalled();
     });
 
     it('lists project members for authorized caller', async () => {
