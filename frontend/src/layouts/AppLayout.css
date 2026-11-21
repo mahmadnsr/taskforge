@@ -1,0 +1,41 @@
+.app-shell { display:flex; min-height:100vh; background:var(--app-bg); color:var(--app-text); }
+.app-sidebar { display:flex; flex-direction:column; background:var(--app-surface); border-right:1px solid var(--app-border); }
+.app-sidebar-desktop { width:248px; flex:none; transition:width .18s ease; }
+.app-sidebar-desktop.is-collapsed { width:72px; }
+.app-sidebar-brand { display:flex; align-items:center; gap:10px; height:64px; padding:0 16px; border-bottom:1px solid var(--app-border); }
+.app-brand-name { font-size:15px; font-weight:700; letter-spacing:-.025em; white-space:nowrap; }
+.app-collapse-button { margin-left:auto; }
+.app-sidebar-nav { flex:1; padding:20px 12px; overflow-y:auto; }
+.app-nav-group + .app-nav-group { margin-top:24px; }
+.app-nav-heading { margin:0 12px 8px; color:var(--app-muted); font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; }
+.app-sidebar-nav ul { list-style:none; margin:0; padding:0; }
+.app-sidebar-nav li + li { margin-top:3px; }
+.app-nav-link { display:flex; align-items:center; gap:12px; min-height:40px; padding:0 12px; border-radius:8px; color:var(--app-muted); font-weight:500; text-decoration:none; }
+.app-nav-link:hover, .app-icon-button:hover, .app-theme-button:hover { background:var(--app-surface-hover); color:var(--app-text); }
+.app-nav-link.is-active { background:var(--app-accent-surface); color:var(--app-accent); font-weight:650; }
+.app-nav-link.is-collapsed { justify-content:center; padding:0; }
+.app-sidebar-footer { display:flex; align-items:center; gap:10px; min-height:68px; padding:12px 14px; border-top:1px solid var(--app-border); }
+.app-avatar { display:grid; place-items:center; flex:none; width:34px; height:34px; border-radius:9px; background:var(--app-accent-surface); color:var(--app-accent); font-size:12px; font-weight:700; }
+.app-account { display:flex; flex:1; min-width:0; flex-direction:column; line-height:1.3; }
+.app-account span, .app-account small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.app-account small { color:var(--app-muted); }
+.app-icon-button { position:relative; display:grid; place-items:center; flex:none; width:38px; height:38px; border:0; border-radius:8px; background:transparent; color:var(--app-muted); text-decoration:none; }
+.app-workspace { display:flex; flex:1; min-width:0; flex-direction:column; }
+.app-header { position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:14px; min-height:64px; padding:0 clamp(16px,3vw,36px); border-bottom:1px solid var(--app-border); background:var(--app-surface); }
+.app-page-title { display:flex; min-width:0; flex-direction:column; line-height:1.3; }
+.app-page-title span { color:var(--app-muted); font-size:11px; }
+.app-page-title strong { font-size:15px; font-weight:650; }
+.app-header-actions { display:flex; align-items:center; gap:10px; margin-left:auto; }
+.app-theme-button { min-height:36px; padding:0 12px; border:1px solid var(--app-border); border-radius:8px; background:var(--app-surface); color:var(--app-text); font-size:12px; font-weight:600; }
+.app-notification-dot { position:absolute; right:5px; top:5px; width:8px; height:8px; border-radius:50%; background:var(--app-accent); }
+.app-main { flex:1; min-width:0; padding:clamp(16px,3vw,36px); }
+.app-content { width:100%; max-width:1280px; margin:0 auto; }
+.app-skip-link { position:fixed; left:12px; top:-80px; z-index:100; padding:10px 14px; background:var(--app-surface); color:var(--app-text); }
+.app-skip-link:focus { top:8px; }
+.app-mobile-layer { position:fixed; inset:0; z-index:40; }
+.app-mobile-backdrop { position:absolute; inset:0; width:100%; border:0; background:rgba(15,23,42,.55); }
+.app-sidebar-mobile { position:absolute; inset:0 auto 0 0; width:min(280px,85vw); box-shadow:var(--app-shadow); }
+.app-mobile-close { position:absolute; top:13px; right:12px; z-index:1; }
+.app-menu-button { display:none; }
+@media (max-width:900px) { .app-sidebar-desktop { display:none; } .app-menu-button { display:grid; } }
+@media (max-width:480px) { .app-header-avatar { display:none; } .app-header-actions { gap:3px; } .app-theme-button { padding:0 8px; } }
