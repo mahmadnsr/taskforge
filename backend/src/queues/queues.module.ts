@@ -17,6 +17,6 @@ import { createRedisConfig } from '../config/redis.config.js';
     }),
   ],
   providers: [QueuesService],
-  exports: [QueuesService],
+  exports: [QueuesService, BullModule],
 })
 export class QueuesModule {}

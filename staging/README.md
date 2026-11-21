@@ -23,8 +23,9 @@ been approved.
 From the repository root:
 
 `init` and `configure-mailpit` have already been run in this workspace. They
-refuse to overwrite the generated configuration. For this workspace, begin
-with `target`; on a fresh clone, begin with `init`.
+refuse to overwrite the generated configuration. Existing local state should
+run `configure-observability` once and then `target`; on a fresh clone, begin
+with `init` (which already creates the observability token).
 
 ```bash
 bash staging/stage.sh init
@@ -94,6 +95,13 @@ set `TASKFORGE_BENCH_SAMPLES` to an even value from 20 through 100 when needed.
 `reliability-qa.mjs` uses that fixture to stop and restart only the local worker
 and Redis, verifying that committed outbox events survive both outages and are
 published after recovery.
+
+The API and worker emit JSON logs. Each API response includes `x-request-id`.
+The loopback-only `http://127.0.0.1:3300/metrics` endpoint still requires the
+generated `METRICS_ACCESS_TOKEN` from the owner-only `staging/.state/app.env`;
+requests without the exact bearer token return HTTP 401. A scrape reads BullMQ
+queue counts and one aggregate over pending outbox rows and does not expose job
+payloads, tenant identifiers, or database connection details.
 The staging Nginx configuration disables access logs so invitation tokens in
 the URL are not written there.
 

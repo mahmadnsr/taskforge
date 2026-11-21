@@ -36,6 +36,21 @@ EOF
   printf 'Local Mailpit SMTP configuration created. Credentials were not displayed.\n'
 }
 
+write_observability_config() {
+  [[ -f "$state_dir/app.env" && ! -L "$state_dir/app.env" ]] ||
+    fail 'staging app configuration is missing or linked'
+  if grep -q '^METRICS_ACCESS_TOKEN=' "$state_dir/app.env"; then
+    fail 'staging observability configuration already exists; preserving it'
+  fi
+  umask 077
+  local metrics_access_token
+  metrics_access_token="$(openssl rand -hex 32)"
+  cp "$state_dir/app.env" "$state_dir/app.env.observability.tmp"
+  printf 'METRICS_ACCESS_TOKEN=%s\n' "$metrics_access_token" >> "$state_dir/app.env.observability.tmp"
+  mv "$state_dir/app.env.observability.tmp" "$state_dir/app.env"
+  printf 'Local staging observability configuration created. Token was not displayed.\n'
+}
+
 check_migrations() {
   local name
   for name in \
@@ -53,10 +68,11 @@ init_config() {
   fi
   umask 077
   mkdir -m 700 "$state_dir"
-  local postgres_password redis_password jwt_secret
+  local postgres_password redis_password jwt_secret metrics_access_token
   postgres_password="$(openssl rand -hex 24)"
   redis_password="$(openssl rand -hex 24)"
   jwt_secret="$(openssl rand -hex 32)"
+  metrics_access_token="$(openssl rand -hex 32)"
   cat > "$state_dir/postgres.env" <<EOF
 POSTGRES_DB=taskforge_stage
 POSTGRES_USER=taskforge_stage
@@ -69,6 +85,7 @@ EOF
 DATABASE_URL=postgresql://taskforge_stage:${postgres_password}@postgres:5432/taskforge_stage?schema=public
 DATABASE_URL_UNPOOLED=postgresql://taskforge_stage:${postgres_password}@postgres:5432/taskforge_stage?schema=public
 JWT_ACCESS_SECRET=${jwt_secret}
+METRICS_ACCESS_TOKEN=${metrics_access_token}
 NODE_ENV=development
 PORT=3000
 CORS_ORIGINS=http://127.0.0.1:8088,http://localhost:8088
@@ -137,6 +154,11 @@ const expected = {
   TEST_REDIS_PORT: '6379',
   TEST_REDIS_PASSWORD: redisPassword,
 };
+const metricsAccessToken = entries.get('METRICS_ACCESS_TOKEN');
+if (metricsAccessToken !== undefined) {
+  if (!/^[a-f0-9]{64}$/.test(metricsAccessToken)) process.exit(1);
+  expected.METRICS_ACCESS_TOKEN = metricsAccessToken;
+}
 if (fs.existsSync(path.join(dir, 'mailpit.env'))) {
   const mailpit = readEnv('mailpit.env');
   const auth = /^stage_mailer:([a-f0-9]{48})$/.exec(mailpit.get('MP_SMTP_AUTH') ?? '');
@@ -207,6 +229,12 @@ case "${1:-}" in
     [[ $# -eq 1 ]] || fail "usage: $0 configure-mailpit"
     check_config allow-missing-mailpit
     write_mailpit_config
+    check_config
+    ;;
+  configure-observability)
+    [[ $# -eq 1 ]] || fail "usage: $0 configure-observability"
+    check_config
+    write_observability_config
     check_config
     ;;
   target)

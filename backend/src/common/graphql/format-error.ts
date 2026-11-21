@@ -181,8 +181,7 @@ function masked(): GraphQLFormattedError {
  * Production log line for a suppressed message: HTTP status, category and a
  * count only. Never the exception message or response body (they can contain
  * submitted values), never the path (it can contain client-chosen aliases).
- * No request/correlation ID exists in this codebase yet; add it here once a
- * request-context mechanism is introduced.
+ * The structured logger adds the current request correlation ID.
  */
 function logSuppressed(status: number, category: string, count: number): void {
   logger.warn(

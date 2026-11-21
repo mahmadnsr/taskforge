@@ -25,6 +25,30 @@ export function validateEnv(config: Record<string, unknown>) {
     errors.push('JWT_ACCESS_SECRET must be at least 32 characters');
   }
 
+  // Metrics endpoint bearer token. Production must explicitly configure a
+  // separate high-entropy token; outside production the endpoint remains
+  // inaccessible when this value is omitted.
+  const metricsToken = config.METRICS_ACCESS_TOKEN;
+
+  if (
+    config.NODE_ENV === 'production' &&
+    (typeof metricsToken !== 'string' || metricsToken.length < 32)
+  ) {
+    errors.push('METRICS_ACCESS_TOKEN is required in production and must be at least 32 characters');
+  } else if (
+    metricsToken !== undefined &&
+    (
+      typeof metricsToken !== 'string' ||
+      metricsToken.length < 32 ||
+      Array.from(metricsToken).some((character) => {
+        const code = character.charCodeAt(0);
+        return code <= 32 || code === 127;
+      })
+    )
+  ) {
+    errors.push('METRICS_ACCESS_TOKEN must be at least 32 non-whitespace characters');
+  }
+
   // Application port
   const port = config.PORT;
 

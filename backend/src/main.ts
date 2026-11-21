@@ -4,10 +4,15 @@ import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import express from 'express';
+import { StructuredLogger } from './observability/structured-logger.service.js';
+
+const logger = new StructuredLogger('api');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bodyParser: false,
+    bufferLogs: true,
+    logger,
   });
 
   // Limit incoming request body size to 1 MB.
@@ -48,7 +53,8 @@ async function bootstrap() {
   app.enableCors({
     origin: origins,
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-organization-id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-organization-id', 'x-request-id'],
+    exposedHeaders: ['x-request-id'],
     credentials: false,
   });
 
@@ -58,11 +64,10 @@ async function bootstrap() {
 }
 
 bootstrap().catch((error: unknown) => {
-  if (process.env.NODE_ENV === 'production') {
-    console.error('Application failed to start.');
-  } else {
-    console.error('Application failed to start:', error);
-  }
-
+  logger.fatal({
+    event: 'api.startup.failed',
+    message: 'Application failed to start',
+    ...(process.env.NODE_ENV === 'production' ? {} : { error }),
+  });
   process.exitCode = 1;
 });

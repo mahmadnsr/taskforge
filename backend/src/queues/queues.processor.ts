@@ -1,4 +1,4 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { TaskReminderStatus, TaskStatus } from '@prisma/client';
@@ -27,21 +27,23 @@ export class QueuesProcessor extends WorkerHost {
   ): Promise<void> {
     switch (job.name) {
       case 'test-job': {
-        const data = job.data as TestJobPayload;
-
-        console.log(
-          `[TaskForge Worker] Processed job=${job.id} message=${data.message}`,
-        );
+        this.logger.log({
+          event: 'queue.test_job.processed',
+          message: 'Test job processed',
+          job_name: job.name,
+        });
 
         return;
       }
 
       case 'task-event': {
         const data = job.data as TaskEventPayload;
-
-        console.log(
-          `[TaskForge Worker] Task event=${data.eventType} job=${job.id} task=${data.taskId} organization=${data.organizationId}`,
-        );
+        this.logger.log({
+          event: 'queue.task_event.processed',
+          message: 'Task event processed',
+          job_name: job.name,
+          event_type: data.eventType,
+        });
 
         return;
       }
@@ -286,6 +288,62 @@ export class QueuesProcessor extends WorkerHost {
       default:
         throw new Error(`Unknown job type: ${job.name}`);
     }
+  }
+
+  @OnWorkerEvent('active')
+  onJobActive(job: Job): void {
+    this.logger.log({
+      event: 'queue.job.started',
+      message: 'Queue job started',
+      job_name: job.name,
+      attempt: job.attemptsMade + 1,
+    });
+  }
+
+  @OnWorkerEvent('completed')
+  onJobCompleted(job: Job): void {
+    const durationMs = job.processedOn && job.finishedOn
+      ? Math.max(0, job.finishedOn - job.processedOn)
+      : undefined;
+    this.logger.log({
+      event: 'queue.job.completed',
+      message: 'Queue job completed',
+      job_name: job.name,
+      attempts_made: job.attemptsMade,
+      ...(durationMs === undefined ? {} : { duration_ms: durationMs }),
+    });
+  }
+
+  @OnWorkerEvent('failed')
+  onJobFailed(job: Job | undefined, error: Error): void {
+    const maximumAttempts = Number(job?.opts.attempts ?? 1);
+    const attemptsMade = job?.attemptsMade ?? 0;
+    this.logger.error({
+      event: 'queue.job.failed',
+      message: 'Queue job failed',
+      job_name: job?.name ?? 'unknown',
+      attempts_made: attemptsMade,
+      maximum_attempts: maximumAttempts,
+      will_retry: Boolean(job && attemptsMade < maximumAttempts),
+      error,
+    });
+  }
+
+  @OnWorkerEvent('stalled')
+  onJobStalled(): void {
+    this.logger.warn({
+      event: 'queue.job.stalled',
+      message: 'Queue job stalled',
+    });
+  }
+
+  @OnWorkerEvent('error')
+  onWorkerError(error: Error): void {
+    this.logger.error({
+      event: 'queue.redis.error',
+      message: 'Queue worker Redis connection error',
+      error,
+    });
   }
 
   private async releaseReminderClaim(

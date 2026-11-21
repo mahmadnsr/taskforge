@@ -14,13 +14,13 @@ TaskForge is a multi-tenant team task application. An organization admin creates
 
 ## Stack and architecture
 
-| Layer | Implementation |
-| --- | --- |
-| UI | React, TypeScript, Vite, Apollo Client, Tailwind CSS |
-| API | NestJS, GraphQL/Apollo, Prisma |
-| Data | PostgreSQL |
-| Background work | Redis, BullMQ, separate NestJS worker |
-| Email | SMTP; Mailpit in isolated local staging |
+| Layer           | Implementation                                       |
+| --------------- | ---------------------------------------------------- |
+| UI              | React, TypeScript, Vite, Apollo Client, Tailwind CSS |
+| API             | NestJS, GraphQL/Apollo, Prisma                       |
+| Data            | PostgreSQL                                           |
+| Background work | Redis, BullMQ, separate NestJS worker                |
+| Email           | SMTP; Mailpit in isolated local staging              |
 
 The browser calls the GraphQL API. Prisma stores application data in PostgreSQL. API transactions record task events in an outbox; a worker dispatches those events to BullMQ through Redis. The worker also handles email jobs, reminders, and a health heartbeat. See [the architecture guide](docs/architecture.md) for the data flow and diagram.
 
@@ -43,6 +43,31 @@ A DONE task is 100% complete. Otherwise, progress averages the completion percen
 Prisma models users, hashed refresh tokens, organizations/members/invitations, projects/members, tasks/subtasks/checklists/activity/comments, notifications, reminders, and outbox events. SQL migrations live in `backend/prisma/migrations/` and must be applied in order. Soft deletion retains task audit history.
 
 Task mutations write outbox events in the same PostgreSQL transaction as task changes. The dispatcher reads pending events and enqueues BullMQ jobs; this avoids reporting a successful task change while silently losing its event during an API failure. Redis carries the queue, while the separate worker processes task events and SMTP email jobs. Reminder scheduling records notification and email state and uses idempotency/claim checks to reduce duplicate sends.
+
+## Observability
+
+The API and worker write newline-delimited structured JSON logs to stdout/stderr.
+Every record contains a timestamp, severity, process, component, and event name.
+HTTP and GraphQL logs also include a validated or generated `x-request-id`; the
+same ID is returned in the response header. Log serialization redacts secret
+keys and common credential formats and never records GraphQL variables or job
+payloads.
+
+`GET /metrics` exports Prometheus-compatible, in-process HTTP and GraphQL
+request/error/duration metrics, bounded-window p50/p95 values, BullMQ queue
+state and Redis connectivity, plus a single pending-outbox aggregate. The
+endpoint requires `Authorization: Bearer <METRICS_ACCESS_TOKEN>` and remains
+closed when the token is absent. Labels are deliberately limited to HTTP
+method, normalized route, status class, GraphQL operation type, and queue
+state. The p50/p95 gauges use the nearest-rank values from the latest 1,024
+durations for each label set, reset on process restart, and are not
+mergeable across API replicas. Long-lived notification SSE connections are
+counted as HTTP requests but excluded from HTTP latency histograms and p50/p95.
+Queue/outbox snapshots are cached for five seconds per API process and
+concurrent scrapes share one collection attempt. Health endpoints remain
+separate: `/health/live` checks only the API
+process, `/health/ready` checks PostgreSQL and Redis, and `/health/worker`
+reports the worker heartbeat without infrastructure details.
 
 ## Local setup
 
@@ -69,17 +94,18 @@ Set the frontend `VITE_GRAPHQL_URL` to the local GraphQL endpoint if the default
 
 Configure these in your own ignored environment file or deployment secret store. This table intentionally contains no credential values.
 
-| Variable | Purpose |
-| --- | --- |
-| `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | Prisma PostgreSQL connections |
-| `JWT_ACCESS_SECRET`, `JWT_ACCESS_EXPIRES_IN` | JWT signing and access lifetime |
-| `REFRESH_TOKEN_TTL_DAYS` | Refresh lifetime |
-| `NODE_ENV`, `PORT` | Runtime mode and API port |
-| `CORS_ORIGINS`, `FRONTEND_URL` | Browser origins and invitation link base |
-| `REDIS_HOST`, `REDIS_PORT`, `REDIS_USERNAME`, `REDIS_PASSWORD`, `REDIS_TLS` | Queue connection |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Email delivery |
-| `TRUST_PROXY` | Trusted reverse proxy addresses, when applicable |
-| `VITE_GRAPHQL_URL` | GraphQL URL compiled into the frontend |
+| Variable                                                                    | Purpose                                                                 |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `DATABASE_URL`, `DATABASE_URL_UNPOOLED`                                     | Prisma PostgreSQL connections                                           |
+| `JWT_ACCESS_SECRET`, `JWT_ACCESS_EXPIRES_IN`                                | JWT signing and access lifetime                                         |
+| `REFRESH_TOKEN_TTL_DAYS`                                                    | Refresh lifetime                                                        |
+| `METRICS_ACCESS_TOKEN`                                                      | Separate bearer token protecting `GET /metrics`; required in production |
+| `NODE_ENV`, `PORT`                                                          | Runtime mode and API port                                               |
+| `CORS_ORIGINS`, `FRONTEND_URL`                                              | Browser origins and invitation link base                                |
+| `REDIS_HOST`, `REDIS_PORT`, `REDIS_USERNAME`, `REDIS_PASSWORD`, `REDIS_TLS` | Queue connection                                                        |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`             | Email delivery                                                          |
+| `TRUST_PROXY`                                                               | Trusted reverse proxy addresses, when applicable                        |
+| `VITE_GRAPHQL_URL`                                                          | GraphQL URL compiled into the frontend                                  |
 
 See `backend/.env.example` for variable descriptions. Never reuse local/staging secrets for a deployed environment.
 

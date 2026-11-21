@@ -221,6 +221,7 @@ describe('validateEnv', () => {
       ...validConfig,
       NODE_ENV: 'production',
       CORS_ORIGINS: 'https://app.example.com',
+      METRICS_ACCESS_TOKEN: 'm'.repeat(32),
     };
 
     expect(validateEnv(config)).toEqual(config);
@@ -281,10 +282,27 @@ describe('validateEnv', () => {
       NODE_ENV: 'production',
       CORS_ORIGINS: 'https://app.example.com',
       FRONTEND_URL: 'https://app.example.com',
+      METRICS_ACCESS_TOKEN: 'm'.repeat(32),
     };
 
     expect(validateEnv(config)).toEqual(config);
   });
+
+  it('should require a separate metrics token in production', () => {
+    expect(() => validateEnv({
+      ...validConfig,
+      NODE_ENV: 'production',
+      CORS_ORIGINS: 'https://app.example.com',
+    })).toThrow(/METRICS_ACCESS_TOKEN is required in production/);
+  });
+
+  it.each(['short', 'x'.repeat(31), `x${'y'.repeat(31)}\n`])(
+    'should reject an invalid metrics token: %s',
+    (value) => {
+      expect(() => validateEnv({ ...validConfig, METRICS_ACCESS_TOKEN: value }))
+        .toThrow(/METRICS_ACCESS_TOKEN/);
+    },
+  );
 
   // TRUST_PROXY validation
 

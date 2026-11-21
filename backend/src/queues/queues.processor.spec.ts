@@ -102,7 +102,7 @@ describe('QueuesProcessor', () => {
   };
 
   it('processes test jobs', async () => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const log = vi.spyOn(processor['logger'], 'log').mockImplementation(() => {});
 
     await processor.process({
       id: 'test-1',
@@ -110,16 +110,18 @@ describe('QueuesProcessor', () => {
       data: { message: 'hello' },
     } as Job);
 
-    expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('message=hello'),
-    );
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'queue.test_job.processed',
+      job_name: 'test-job',
+    }));
+    expect(JSON.stringify(log.mock.calls)).not.toContain('hello');
     expect(emailService.send).not.toHaveBeenCalled();
 
     log.mockRestore();
   });
 
   it('processes task events', async () => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const log = vi.spyOn(processor['logger'], 'log').mockImplementation(() => {});
 
     await processor.process({
       id: 'event-1',
@@ -134,12 +136,40 @@ describe('QueuesProcessor', () => {
       },
     } as Job);
 
-    expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('event=TASK_CREATED'),
-    );
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'queue.task_event.processed',
+      job_name: 'task-event',
+      event_type: 'TASK_CREATED',
+    }));
+    expect(JSON.stringify(log.mock.calls)).not.toContain('org-1');
+    expect(JSON.stringify(log.mock.calls)).not.toContain('task-1');
     expect(emailService.send).not.toHaveBeenCalled();
 
     log.mockRestore();
+  });
+
+  it('logs bounded job lifecycle metadata without job payloads', () => {
+    const log = vi.spyOn(processor['logger'], 'log').mockImplementation(() => {});
+    const error = vi.spyOn(processor['logger'], 'error').mockImplementation(() => {});
+    const job = {
+      name: 'task-event',
+      attemptsMade: 1,
+      opts: { attempts: 5 },
+      processedOn: 100,
+      finishedOn: 125,
+      data: { token: 'must-not-appear', organizationId: 'org-secret' },
+    } as unknown as Job;
+
+    processor.onJobActive(job);
+    processor.onJobCompleted(job);
+    processor.onJobFailed(job, new Error('Redis unavailable'));
+
+    const records = JSON.stringify([log.mock.calls, error.mock.calls]);
+    expect(records).toContain('queue.job.started');
+    expect(records).toContain('queue.job.completed');
+    expect(records).toContain('queue.job.failed');
+    expect(records).not.toContain('must-not-appear');
+    expect(records).not.toContain('org-secret');
   });
 
   it('sends normal email jobs through EmailService', async () => {
