@@ -1,106 +1,181 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# TaskForge — Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+The backend of TaskForge is a modular, multi-tenant application built
+with NestJS, TypeScript, GraphQL, PostgreSQL, Prisma, Redis and BullMQ.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+It provides organization management, role-based authorization, project
+management, task workflows, analytics, notifications and reliable
+background processing.
 
-## Description
+## Technology Stack
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+| Technology | Purpose |
+| --- | --- |
+| NestJS | Modular backend architecture |
+| TypeScript | Type-safe application development |
+| GraphQL and Apollo | API layer |
+| PostgreSQL | Relational data persistence |
+| Prisma | Database access and migrations |
+| Redis | Caching and queue infrastructure |
+| BullMQ | Background job processing |
+| JWT and bcrypt | Authentication and password security |
+| Nodemailer | Email delivery |
+| Vitest | Automated testing |
+| Oxlint | Static code analysis |
 
-## Project setup
+## Backend Architecture
 
-```bash
-$ pnpm install
-```
+The application separates API request handling from asynchronous
+background processing.
 
-## Compile and run the project
+- The API handles GraphQL operations, authentication, authorization
+  and business logic.
+- PostgreSQL stores application data and transactional outbox events.
+- Redis provides caching and BullMQ infrastructure.
+- The background worker processes asynchronous jobs and task reminders.
+- Server-Sent Events support real-time notification delivery.
 
-```bash
-# development
-$ pnpm run start
+See the [system architecture](../docs/architecture.md) for details.
 
-# watch mode
-$ pnpm run start:dev
+## Module Structure
 
-# production mode
-$ pnpm run start:prod
-```
+| Module | Responsibility |
+| --- | --- |
+| auth | Authentication and refresh-token rotation |
+| users | User lookup and management |
+| organizations | Organization membership, roles and invitations |
+| projects | Project management and project-level access |
+| tasks | Task workflows, subtasks, checklists and dependencies |
+| task-comments | Task discussions and comment pagination |
+| dashboard | Dashboard summaries and analytics |
+| notifications | Persistent notifications and real-time delivery |
+| task-reminders | Deadline reminders and processing lifecycle |
+| outbox | Reliable asynchronous event delivery |
+| queues | BullMQ queue infrastructure |
+| cache | Redis-backed caching |
+| email | Email delivery |
+| prisma | Database access |
+| config | Environment configuration and validation |
+| common | Shared guards, utilities and GraphQL infrastructure |
+| observability | Structured logging and application metrics |
+| health | Application health endpoints |
+| worker-heartbeat | Background worker health monitoring |
 
-## Run tests
+## Security
 
-```bash
-# unit tests
-$ pnpm run test
+The backend includes:
 
-# e2e tests
-$ pnpm run test:e2e
+- JWT-based authentication.
+- Hashed refresh tokens with atomic rotation.
+- Role-based and tenant-scoped authorization.
+- Project-level access restrictions.
+- Database constraints for tenant integrity.
+- Request validation and sanitized error responses.
+- Rate limiting, Helmet and restrictive CORS configuration.
+- Protected metrics and sensitive-data redaction.
 
-# test coverage
-$ pnpm run test:cov
-```
+See the [security policy](../SECURITY.md) for security controls,
+known limitations and vulnerability reporting.
 
-## Deployment
+## Local Development
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Use an isolated local PostgreSQL and Redis environment.
+Never run development tests or migrations against production databases.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+From the backend directory:
 
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
+### Install dependencies
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+    pnpm install --frozen-lockfile
+
+### Generate Prisma Client
+
+    pnpm exec prisma generate
+
+### Start the API
+
+    pnpm start:dev
+
+### Start the background worker
+
+    pnpm start:worker:dev
+
+Configure the required environment variables before starting either process.
+
+For the complete environment setup, follow the
+[root README](../README.md) and [staging guide](../staging/README.md).
+
+## Database
+
+The database schema is maintained using Prisma migrations.
+
+Tenant-scoped relationships and composite constraints help enforce
+data integrity across organizations, projects and tasks.
+
+- [Prisma schema](prisma/schema.prisma)
+- [Database migrations](prisma/migrations/)
+- [Database architecture](../docs/database.md)
+
+Apply migrations only after verifying the target database and following
+the appropriate backup and release procedures.
+
+## Validation and Testing
+
+### Static analysis
+
+    pnpm lint
+
+### Production build
+
+    pnpm build
+
+### Isolated unit and self-contained integration tests
+
+    pnpm exec vitest run --exclude 'src/auth/token.service.integration.spec.ts' --exclude 'src/task-reminders/task-reminder.integration.spec.ts'
+
+Database and queue integration tests require isolated infrastructure.
+Use the [testing guide](../docs/testing.md) for the complete procedure.
+
+## Production Processes
+
+After building the application, the API and worker run as separate processes.
+
+    pnpm start:prod
+
+    pnpm start:worker
+
+See the [deployment guide](../docs/deployment.md) for configuration,
+migration safety and operational verification.
 
 ## Observability
 
-TaskForge uses local structured JSON logging, request correlation, protected
-Prometheus-compatible metrics, BullMQ lifecycle monitoring, and outbox/queue
-health snapshots. No external monitoring account is required. See the root
-README for endpoint, token, label-cardinality, and health-semantics details.
+TaskForge provides:
 
-## Resources
+- Structured JSON logging.
+- Request correlation.
+- Protected Prometheus-compatible metrics.
+- BullMQ lifecycle monitoring.
+- Transactional outbox and queue health snapshots.
+- API and worker health checks.
 
-Check out a few resources that may come in handy when working with NestJS:
+| Endpoint | Purpose |
+| --- | --- |
+| /health/live | API liveness |
+| /health/ready | API readiness |
+| /health/worker | Worker health |
+| /metrics | Protected application metrics |
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+See the [root README](../README.md) for endpoint configuration,
+metrics limitations and health semantics.
 
-## Support
+## Further Documentation
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+- [Engineering decisions](../docs/engineering-decisions.md)
+- [Performance benchmarks](../docs/performance.md)
+- [Testing and CI](../docs/testing.md)
+- [Deployment](../docs/deployment.md)
 
-## Stay in touch
+## Framework Attribution
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Built using [NestJS](https://nestjs.com/), an MIT-licensed framework
+created by Kamil Myśliwiec and contributors.

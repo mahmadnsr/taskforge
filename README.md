@@ -1,28 +1,169 @@
-# TaskForge / Work-Bench
+<div align="center">
 
-TaskForge is a multi-tenant team task application. An organization admin creates a workspace, invites managers and employees, assigns people to projects, and follows work from tasks through subtasks, checklists, comments, notifications, and analytics. The frontend displays the product as Work-Bench.
+<img src="frontend/src/assets/taskforge-bee.webp" alt="TaskForge logo" width="150" />
+
+# TaskForge
+
+**A multi-tenant project and task management platform.**
+
+Manage teams, organize projects, track work, and monitor progress
+through a unified workspace.
+
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![NestJS](https://img.shields.io/badge/NestJS-E0234E?logo=nestjs&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
+![GraphQL](https://img.shields.io/badge/GraphQL-E10098?logo=graphql&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+![Prisma](https://img.shields.io/badge/Prisma-2D3748?logo=prisma&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-DC382D?logo=redis&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+
+[Features](#features) ·
+[Architecture](#system-architecture) ·
+[Performance](#performance) ·
+[Getting Started](#getting-started) ·
+[Documentation](#documentation)
+
+</div>
+
+---
+
+## Overview
+
+TaskForge is a full-stack workspace platform for organizations
+to manage projects, teams, and task lifecycles.
+
+The application combines tenant-scoped authorization, structured
+task workflows, real-time notification updates, reliable
+background processing, and operational observability.
 
 ## Features
 
-- Organization registration, invitation email delivery, and invitation acceptance.
-- ADMIN, MANAGER, and EMPLOYEE roles with organization and project membership checks.
-- Projects, project members, tasks, one-level subtasks, checklists, comments, and activity history.
-- Task assignment, guarded status transitions, soft deletion, and due date reminders.
-- Dashboard summaries, task and project progress, project health, and employee workload analytics.
-- Persisted in-app notifications with a live SSE update stream and read state, plus background email delivery.
-- Same-project task dependencies with cycle prevention and blocked-work checks.
+| Area | Capabilities |
+| --- | --- |
+| Workspace management | Organization registration, invitations, member management |
+| Access control | ADMIN, MANAGER, EMPLOYEE roles and project-level permissions |
+| Project management | Project teams, assignments, archival and progress |
+| Task management | Tasks, subtasks, checklists, priorities, deadlines and comments |
+| Review workflow | Task submission, approval and change requests |
+| Dependencies | Task blockers, cycle prevention and dependency validation |
+| Analytics | Project health, employee workload and completion metrics |
+| Notifications | Live SSE updates, unread state and deadline reminders |
+| Activity history | Task activity records and soft deletion |
+| User experience | Responsive workspace, light and dark themes |
 
-## Stack and architecture
+## Screenshots
 
-| Layer           | Implementation                                       |
-| --------------- | ---------------------------------------------------- |
-| UI              | React, TypeScript, Vite, Apollo Client, Tailwind CSS |
-| API             | NestJS, GraphQL/Apollo, Prisma                       |
-| Data            | PostgreSQL                                           |
-| Background work | Redis, BullMQ, separate NestJS worker                |
-| Email           | SMTP; Mailpit in isolated local staging              |
+### Landing Page
 
-The browser calls the GraphQL API. Prisma stores application data in PostgreSQL. API transactions record task events in an outbox; a worker dispatches those events to BullMQ through Redis. The worker also handles email jobs, reminders, and a health heartbeat. See [the architecture guide](docs/architecture.md) for the data flow and diagram.
+<img src="docs/screenshots/home.webp" alt="TaskForge landing page" width="100%" />
+
+### Workspace Dashboard
+
+<img src="docs/screenshots/dashboard-dark.webp" alt="TaskForge dark dashboard" width="100%" />
+
+### Light Theme
+
+<img src="docs/screenshots/dashboard-light.webp" alt="TaskForge light dashboard" width="100%" />
+
+### Project and Task Management
+
+<img src="docs/screenshots/projects.webp" alt="Project management" width="100%" />
+
+<img src="docs/screenshots/tasks.webp" alt="Task management" width="100%" />
+
+### Task Details and Analytics
+
+<img src="docs/screenshots/task-details.webp" alt="Task details, subtasks and checklist" width="65%" />
+
+<img src="docs/screenshots/analytics.webp" alt="Project analytics" width="100%" />
+
+### Additional Views
+
+| View | Screenshot |
+| --- | --- |
+| Members | [View screenshot](docs/screenshots/members.webp) |
+| Notifications | [View screenshot](docs/screenshots/inbox.webp) |
+| Mobile workspace | [View screenshot](docs/screenshots/mobile-dashboard.webp) |
+
+## Engineering Highlights
+
+- Multi-tenant authorization reinforced by composite foreign keys.
+- JWT authentication with hashed, rotating refresh tokens.
+- Transactional outbox for reliable event publication.
+- Redis-backed BullMQ queues and a dedicated background worker.
+- Concurrency-safe task reviews and dependency graph modifications.
+- Cursor pagination and targeted database indexes.
+- Structured logs, request correlation and protected metrics.
+- Isolated Docker staging for integration and recovery verification.
+
+## System Architecture
+
+```mermaid
+flowchart LR
+    UI[React + Apollo Client] -->|GraphQL| API[NestJS API]
+    API -->|SSE notifications| UI
+    API -->|Prisma| DB[(PostgreSQL)]
+    API -->|Enqueue when appropriate| Redis[(Redis / BullMQ)]
+    DB -->|Pending events| Outbox[Outbox Dispatcher]
+    Outbox --> Redis
+    Redis --> Worker[Background Worker]
+    Worker -->|Reminder state and heartbeat| DB
+    Worker --> SMTP[SMTP / Mailpit]
+```
+
+TaskForge follows a modular monolith architecture with a separate
+background worker.
+
+PostgreSQL is the authoritative data store. Redis supports
+asynchronous job processing rather than replacing persistent
+business data.
+
+See the [architecture guide](docs/architecture.md).
+
+## Technology Stack
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | React, TypeScript, Vite, Tailwind CSS |
+| Client state and API | Apollo Client |
+| Backend | NestJS, GraphQL, Apollo Server |
+| ORM | Prisma |
+| Database | PostgreSQL |
+| Queue | Redis, BullMQ |
+| Notifications | Server-Sent Events |
+| Email | SMTP, Mailpit for staging |
+| Authentication | JWT, bcrypt, refresh-token rotation |
+| Testing | Vitest |
+| Infrastructure | Docker, Docker Compose |
+| CI | GitHub Actions |
+
+## Repository Structure
+
+```text
+work-bench/
+├── backend/
+│   ├── src/
+│   ├── prisma/
+│   ├── scripts/
+│   └── artifacts/
+├── frontend/
+│   ├── src/
+│   └── public/
+├── staging/
+├── docs/
+├── .github/workflows/
+└── docker-compose.yml
+```
+
+## Database Architecture
+
+The PostgreSQL schema contains 15 models and 7 enums.
+
+Composite foreign keys, unique constraints, indexes and
+application-level authorization reinforce data integrity.
+
+See the [database architecture and ER diagram](docs/database.md).
 
 ## Authentication and access
 
@@ -69,9 +210,34 @@ separate: `/health/live` checks only the API
 process, `/health/ready` checks PostgreSQL and Redis, and `/health/worker`
 reports the worker heartbeat without infrastructure details.
 
-## Local setup
+## Performance
 
-Prerequisites: Node.js 22, pnpm 10.34.5, PostgreSQL, Redis, and an SMTP sink such as Mailpit. Use only local development credentials. Create your own `backend/.env` from `backend/.env.example`; never commit it. Set the API database URLs and Redis/SMTP connection details, then run:
+Historical Prisma Client benchmark results recorded on
+October 20, 2026:
+
+| Operation | Median | p95 |
+| --- | ---: | ---: |
+| Task listing | 1.751 ms | 2.706 ms |
+| Task search and pagination | 0.573 ms | 0.765 ms |
+| Task count | 0.306 ms | 0.388 ms |
+| Comment cursor - middle | 0.466 ms | 0.483 ms |
+
+Benchmark configuration: PostgreSQL 18.6, 100 project tasks,
+101 comments on the selected task, 5 warm-up runs and
+50 measured runs per workload.
+
+These are historical client-side database query measurements,
+not production API latency or concurrent-user capacity.
+
+See the [performance engineering report](docs/performance.md).
+
+## Getting Started
+
+For isolated local verification, prefer the [staging setup](staging/README.md).
+
+### Manual development setup
+
+Prerequisites: Node.js 22, pnpm 10.34.5, PostgreSQL, Redis, and an SMTP sink such as Mailpit. Use only local development credentials. Create your own `backend/.env` from `backend/.env.example`; never commit it. Set the API database URLs and Redis/SMTP connection details, verify that both database URLs point to your local development database, then run:
 
 ```bash
 cd backend
@@ -90,7 +256,7 @@ cd frontend && pnpm install --frozen-lockfile && pnpm dev
 
 Set the frontend `VITE_GRAPHQL_URL` to the local GraphQL endpoint if the default `http://localhost:3000/graphql` is unsuitable. The worker uses the same backend environment. The root `docker-compose.yml` is a separate development stack; review its port and credential defaults before starting it. For the tested isolated Docker setup, follow [staging/README.md](staging/README.md). Its generated state and three data volumes are separate from the root stack, and its API, UI, and Mailpit ports bind only to loopback.
 
-## Environment variables
+## Environment Variables
 
 Configure these in your own ignored environment file or deployment secret store. This table intentionally contains no credential values.
 
@@ -109,26 +275,69 @@ Configure these in your own ignored environment file or deployment secret store.
 
 See `backend/.env.example` for variable descriptions. Never reuse local/staging secrets for a deployed environment.
 
-## Tests and checks
+## Testing and CI
+
+GitHub Actions runs on pushes to `main` and the active `dev`, `develop`,
+`development`, `feature/**`, `fix/**`, `test/**`, and `ui/**` branch families,
+and on pull requests targeting `main`. Superseded runs for the same branch or
+pull request are cancelled.
+
+- Backend: frozen-lockfile install with pnpm caching, Prisma Client generation,
+  lint, unit and self-contained integration tests, and a type-checked Nest
+  production build.
+- Frontend: frozen-lockfile install with pnpm caching, lint, TypeScript
+  checking, tests, and a production build.
+- Backend integration: migrations and the refresh-token and reminder queue
+  integration tests run against disposable PostgreSQL and Redis service
+  containers created for the workflow. They never use deployment databases.
+
+The real SMTP integration test and full browser/functional staging workflows
+remain guarded local release checks because they require Mailpit and the
+isolated multi-service staging stack.
+
+### Local verification
 
 ```bash
-cd backend && pnpm exec vitest run --exclude '**/*.integration.spec.ts'
-cd backend && pnpm build
-cd frontend && pnpm test && pnpm build
+(cd backend && pnpm exec prisma generate)
+(cd backend && pnpm lint && pnpm build)
+(cd backend && pnpm exec vitest run --exclude 'src/auth/token.service.integration.spec.ts' --exclude 'src/task-reminders/task-reminder.integration.spec.ts')
+(cd frontend && pnpm exec tsc -b --pretty false && pnpm lint && pnpm test && pnpm build)
 ```
 
-Backend HTTP integration tests bind local ports and can run with `pnpm exec vitest run src/common/graphql/format-error.integration.spec.ts src/common/guards/gql-throttler.guard.integration.spec.ts` from `backend/`. Database/Redis integration tests need their dedicated local fixtures. With isolated staging running, run `bash staging/stage.sh test --approve-local-target`, `bash staging/stage.sh smoke --approve-local-target`, `node staging/validate-frontend-graphql.mjs`, and `node staging/functional-qa.e2e.mjs`. The last script creates fresh test records and uses Mailpit; it does not reset the database. A desktop/mobile browser pass is still needed for visual verification.
+For integration and functional verification, follow the
+[isolated staging guide](staging/README.md).
 
-## Screenshots
+A complete desktop/mobile browser verification pass remains
+part of the release checklist.
 
-Screenshots are pending. Add redacted desktop and mobile images of the dashboard, project/task views, analytics, and invitation flow before publication. Do not include real account details or invitation links.
+## Documentation
 
-## Security considerations
+| Document | Description |
+| --- | --- |
+| [Architecture](docs/architecture.md) | System design and data flow |
+| [Database](docs/database.md) | ER diagram, relationships and constraints |
+| [Engineering Decisions](docs/engineering-decisions.md) | Architectural rationale and trade-offs |
+| [Performance](docs/performance.md) | Benchmarks and optimization strategies |
+| [Security Policy](SECURITY.md) | Security controls and vulnerability reporting |
+| [Deployment](docs/deployment.md) | Secure deployment and operational guidance |
+| [Testing](docs/testing.md) | Test strategy, CI and release verification |
+| [Changelog](CHANGELOG.md) | Development milestones and release history |
+| [Staging](staging/README.md) | Isolated local verification |
+| [Backend](backend/README.md) | Backend development guide |
+| [Frontend](frontend/README.md) | Frontend development guide |
+
+## Security Considerations
 
 Keep all `.env` files and `staging/.state/` out of Git and Docker build contexts. Treat invitation links, JWTs, and refresh tokens as secrets. Use HTTPS, restrictive CORS, trusted proxy settings, durable PostgreSQL/Redis, and an SMTP provider in a deployment. The local staging environment verifies behavior on an empty database; test migrations on sanitized representative data before any production rollout.
 
-## Future improvements
+## Known Limitations and Future Improvements
 
 - Add browser automation for desktop/mobile interaction and accessibility checks.
-- Add representative-data migration tests and a dedicated CI service stack for database/Redis integration.
-- Add redacted product screenshots and deployment-specific operations guidance.
+- Add representative-data migration tests.
+- Complete production deployment and environment-specific operational verification.
+- Evaluate server-side session-family revocation for stronger logout guarantees.
+
+## Author
+
+- [GitHub](https://github.com/mahmadnsr)
+- [LinkedIn](https://www.linkedin.com/in/md-ahmad-ansari/)

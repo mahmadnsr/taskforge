@@ -1,75 +1,158 @@
-# React + TypeScript + Vite
+# TaskForge — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The TaskForge frontend is a responsive project management workspace
+built with React, TypeScript, Vite and Apollo Client.
 
-Currently, two official plugins are available:
+It provides role-aware navigation, project and task management,
+organization administration, analytics and real-time notifications.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Technology Stack
 
-## React Compiler
+| Technology | Purpose |
+| --- | --- |
+| React | Component-based user interface |
+| TypeScript | Type-safe frontend development |
+| Vite | Development server and production builds |
+| Apollo Client | GraphQL communication and caching |
+| React Router | Client-side routing |
+| Tailwind CSS | Utility-based styling |
+| Vitest | Automated testing |
+| React Testing Library | Component and interaction testing |
+| ESLint | Static code analysis |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Application Features
 
-## Expanding the ESLint configuration
+- Responsive landing page and authenticated workspace.
+- Persistent light and dark theme preferences.
+- Organization and project management.
+- Task creation, assignment and status workflows.
+- Subtasks, checklists and task dependencies.
+- Task review and approval workflows.
+- Project progress and employee analytics.
+- Real-time notification inbox.
+- Organization membership and role management.
+- Authentication and invitation acceptance.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Source Structure
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+    src/
+    ├── assets/       Branding and static assets
+    ├── auth/         Authentication state and session lifecycle
+    ├── components/   Reusable UI components
+    ├── hooks/        Reusable React hooks
+    ├── layouts/      Shared application layouts
+    ├── lib/          Apollo Client and authentication utilities
+    ├── pages/        Application screens and workflows
+    └── utils/        Shared utility functions
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Authentication and Session Management
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+The frontend uses a shared authentication state and coordinated
+refresh-token handling.
 
-```
+Session management includes:
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+- Single-flight token refresh coordination.
+- Protection against stale authentication responses.
+- Coordinated logout and refresh behavior.
+- Controlled retries for authenticated read operations.
+- No automatic replay of failed GraphQL mutations.
+- Session-expiration feedback.
+- Notification stream reconnection.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Frontend access controls improve the user experience, but the
+backend remains responsible for enforcing authorization.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+See the [security policy](../SECURITY.md) for known session limitations.
 
-```
+## Real-Time Notifications
+
+The frontend receives notification signals through Server-Sent Events
+and refreshes relevant GraphQL data.
+
+Persisted backend notifications remain the authoritative data source.
+Reconnection and periodic synchronization help recover from temporary
+connection failures.
+
+## Local Development
+
+From the frontend directory:
+
+### Install dependencies
+
+    pnpm install --frozen-lockfile
+
+### Configure the GraphQL endpoint
+
+Create a local environment file containing:
+
+    VITE_GRAPHQL_URL=http://localhost:3000/graphql
+
+This assumes the local development API is available on port 3000.
+
+Vite environment variables are exposed to the browser.
+Never place credentials or private API keys in VITE-prefixed variables.
+
+### Start the development server
+
+    pnpm dev
+
+For the integrated application environment, follow the
+[isolated staging guide](../staging/README.md).
+
+## Validation and Testing
+
+### TypeScript verification
+
+    pnpm exec tsc -b --pretty false
+
+### Static analysis
+
+    pnpm lint
+
+### Automated tests
+
+    pnpm test
+
+### Production build
+
+    pnpm build
+
+### Preview the production build
+
+    pnpm preview
+
+The preview command is intended for local verification, not as
+a production web server.
+
+See the [testing guide](../docs/testing.md) for the complete
+release verification strategy.
+
+## User Interface
+
+The workspace uses a shared responsive layout, theme-aware components
+and consistent navigation across authenticated application screens.
+
+### Dashboard
+
+![TaskForge dashboard](../docs/screenshots/dashboard-dark.webp)
+
+### Light Theme
+
+![TaskForge light dashboard](../docs/screenshots/dashboard-light.webp)
+
+### Mobile Workspace
+
+<img src="../docs/screenshots/mobile-dashboard.webp" alt="TaskForge mobile dashboard" width="300" />
+
+## Further Documentation
+
+- [Project overview](../README.md)
+- [System architecture](../docs/architecture.md)
+- [Engineering decisions](../docs/engineering-decisions.md)
+- [Security policy](../SECURITY.md)
+- [Deployment guide](../docs/deployment.md)
+
+## Framework Attribution
+
+Built with [React](https://react.dev/) and [Vite](https://vite.dev/).
