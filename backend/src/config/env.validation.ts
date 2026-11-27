@@ -189,8 +189,10 @@ export function validateEnv(config: Record<string, unknown>) {
   // (Express interprets 'true' as trusting every proxy hop).
   const trustProxy = config.TRUST_PROXY;
 
-  if (trustProxy !== undefined) {
-    const raw = String(trustProxy).trim();
+  if (trustProxy !== undefined && typeof trustProxy !== 'string') {
+    errors.push('TRUST_PROXY must be a string when provided');
+  } else if (typeof trustProxy === 'string') {
+    const raw = trustProxy.trim();
 
     if (raw === '') {
       errors.push('TRUST_PROXY must not be empty when provided');

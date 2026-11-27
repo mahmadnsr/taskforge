@@ -306,6 +306,19 @@ describe('validateEnv', () => {
 
   // TRUST_PROXY validation
 
+  it.each([true, false, 1, 0, null, {}, ['127.0.0.1']])(
+    'should reject non-string TRUST_PROXY values: %j',
+    (value) => {
+      expect(() =>
+        validateEnv({
+          ...validConfig,
+          TRUST_PROXY: value,
+        }),
+      ).toThrow(/TRUST_PROXY/);
+    },
+  );
+
+
   it('should allow TRUST_PROXY to be omitted', () => {
     expect(validateEnv(validConfig)).toEqual(validConfig);
   });
