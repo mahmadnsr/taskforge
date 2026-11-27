@@ -5,7 +5,8 @@ import { useNotificationStream } from './useNotificationStream'
 const mocks = vi.hoisted(() => ({
   read: vi.fn(), refresh: vi.fn(), refetch: vi.fn(),
 }))
-vi.mock('../auth/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' }, refreshAccessToken: mocks.refresh }) }))
+vi.mock('../auth/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }))
+vi.mock('../lib/session-refresh', () => ({ refreshSession: mocks.refresh }))
 vi.mock('../lib/notification-stream', () => ({ readNotificationStream: mocks.read }))
 vi.mock('../lib/apollo', () => ({ apolloClient: { refetchQueries: mocks.refetch } }))
 
@@ -33,10 +34,21 @@ describe('notification stream lifecycle', () => {
   it('refreshes expired access authentication before reconnecting', async () => {
     vi.useFakeTimers()
     mocks.read.mockResolvedValueOnce('unauthorized').mockResolvedValueOnce('disconnected')
-    mocks.refresh.mockResolvedValue(true)
+    mocks.refresh.mockResolvedValue('success')
     const view = renderHook(() => useNotificationStream())
     await act(async () => { await Promise.resolve() })
     expect(mocks.refresh).toHaveBeenCalledOnce()
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(mocks.read).toHaveBeenCalledTimes(2)
+    view.unmount()
+  })
+
+  it('reconnects after a temporary refresh failure', async () => {
+    vi.useFakeTimers()
+    mocks.read.mockResolvedValueOnce('unauthorized').mockResolvedValueOnce('disconnected')
+    mocks.refresh.mockResolvedValue('unavailable')
+    const view = renderHook(() => useNotificationStream())
+    await act(async () => { await Promise.resolve() })
     await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
     expect(mocks.read).toHaveBeenCalledTimes(2)
     view.unmount()

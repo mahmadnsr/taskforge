@@ -190,3 +190,20 @@ export function BellIcon(props: IconProps) {
     </Icon>
   )
 }
+
+export function MoonIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2Z" />
+    </Icon>
+  )
+}
+
+export function SunIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="3.75" />
+      <path d="M12 2.25v2M12 19.75v2M4.25 12h-2M21.75 12h-2M5.1 5.1 3.7 3.7M20.3 20.3l-1.4-1.4M18.9 5.1l1.4-1.4M3.7 20.3l1.4-1.4" />
+    </Icon>
+  )
+}

@@ -29,7 +29,10 @@ const dependencyMock = (taskDependencies: { taskId: string; blockingTaskId: stri
 const candidateMock = () => ({ request: { query: DEPENDENCY_CANDIDATES, variables: { organizationId: 'org-1', projectId: 'project-1', filters: { limit: 100 } } }, result: { data: { searchProjectTasks: { tasks: [{ id: 'blocker-1', title: 'Design database', status: 'TODO' }] } } } })
 
 function show(mocks: React.ComponentProps<typeof MockedProvider>['mocks'], role: 'ADMIN' | 'MANAGER' | 'EMPLOYEE' = 'EMPLOYEE', initialProgress = progressMock(), eligibleAssigneeIds: string[] = []) {
-  return render(<MockedProvider mocks={[initialProgress, ...(mocks ?? [])]}><TaskDetailsPanel task={task} organizationId="org-1" role={role} userId="user-1" eligibleAssigneeIds={eligibleAssigneeIds} onClose={vi.fn()} onTaskChanged={vi.fn()} /></MockedProvider>)
+  const supplied = [...(mocks ?? [])]
+  if (!supplied.some(mock => mock.request.query === TASK_DEPENDENCIES)) supplied.push(dependencyMock())
+  if (role !== 'EMPLOYEE' && !supplied.some(mock => mock.request.query === DEPENDENCY_CANDIDATES)) supplied.push(candidateMock())
+  return render(<MockedProvider mocks={[initialProgress, ...supplied]}><TaskDetailsPanel task={task} organizationId="org-1" role={role} userId="user-1" eligibleAssigneeIds={eligibleAssigneeIds} onClose={vi.fn()} onTaskChanged={vi.fn()} /></MockedProvider>)
 }
 
 describe('task details GraphQL integration', () => {

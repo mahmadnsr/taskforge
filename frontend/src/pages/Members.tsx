@@ -3,6 +3,8 @@ import { gql } from '@apollo/client'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import './workspace-pages.css'
+import './Members.css'
 
 const MY_ORGANIZATIONS = gql`
   query MyOrganizations {
@@ -147,16 +149,14 @@ function getErrorMessage(error: unknown): string {
 
 function RoleBadge({ role }: { role: Role }) {
   const styles: Record<Role, string> = {
-    ADMIN:
-      'border-violet-500/20 bg-violet-500/10 text-violet-400 shadow-[0_0_10px_rgba(139,92,246,0.1)]',
-    MANAGER:
-      'border-teal-500/20 bg-teal-500/10 text-teal-400 shadow-[0_0_10px_rgba(20,184,166,0.1)]',
-    EMPLOYEE: 'border-zinc-500/20 bg-zinc-500/10 text-zinc-400',
+    ADMIN: 'role-admin',
+    MANAGER: 'role-manager',
+    EMPLOYEE: 'role-employee',
   }
 
   return (
     <span
-      className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-widest ${styles[role]}`}
+      className={`member-role-badge inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase ${styles[role]}`}
     >
       {role.charAt(0) + role.slice(1).toLowerCase()}
     </span>
@@ -449,13 +449,8 @@ export default function Members() {
   }
 
   return (
-    <main className="relative min-h-screen bg-[#050505] text-zinc-300 selection:bg-teal-500/30">
-      {/* Background Elements */}
-      <div className="bg-grid-pattern absolute inset-0 -z-10 pointer-events-none" />
-      <div className="absolute left-1/2 top-0 -z-10 h-150 w-250 -translate-x-1/2 bg-teal-500/5 blur-[150px] animate-float rounded-[100%] pointer-events-none" />
-      <div className="absolute inset-0 bg-noise -z-10 mix-blend-overlay pointer-events-none" />
-
-      <div className="mx-auto max-w-300 px-6 pb-20 pt-10 sm:px-8">
+    <main className="modern-workspace-page members-page relative min-h-screen">
+      <div className="members-content mx-auto max-w-300 px-6 pb-20 pt-10 sm:px-8">
         {/* Header Section */}
         <div className="mb-10 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
           <div>
@@ -944,6 +939,7 @@ export default function Members() {
                   type="button"
                   onClick={closeInviteModal}
                   disabled={inviteState.loading}
+                  aria-label="Close invitation dialog"
                   className="rounded-lg p-2 text-zinc-500 transition hover:bg-white/10 hover:text-white"
                 >
                   <svg

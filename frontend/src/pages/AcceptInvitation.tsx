@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { gql } from '@apollo/client'
 import { useMutation } from '@apollo/client/react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Logo } from '../components/Logo'
 
 const ACCEPT_INVITATION = gql`
   mutation AcceptInvitation($input: AcceptInvitationInput!) {
@@ -78,14 +79,12 @@ export default function AcceptInvitation() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[#080d18] px-5 py-10 text-slate-200">
+    <main className="auth-page grid min-h-screen place-items-center bg-[#080d18] px-5 py-10 text-slate-200">
       <section className="w-full max-w-lg">
         <Link to="/dashboard" className="mb-8 flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-xl bg-cyan-400 text-lg font-black text-slate-950">
-            W
-          </span>
+          <Logo className="size-[68px] shrink-0" />
           <span className="text-2xl font-bold tracking-tight text-white">
-            Work-Bench
+            TaskForge
           </span>
         </Link>
 
@@ -179,7 +178,7 @@ export default function AcceptInvitation() {
 
           {!organization && (
             <p className="mt-6 text-center text-sm text-slate-400">
-              New to Work-Bench?{' '}
+              New to TaskForge?{' '}
               <Link
                 to={`/register?token=${encodeURIComponent(token.trim())}`}
                 className="font-semibold text-cyan-400 hover:text-cyan-300"

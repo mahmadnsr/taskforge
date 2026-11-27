@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { ApolloProvider } from '@apollo/client/react'
 import {
   BrowserRouter,
@@ -12,6 +12,7 @@ import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
 import { apolloClient } from './lib/apollo'
 import AppLayout from './layouts/AppLayout'
+import { Logo } from './components/Logo'
 
 const Tasks = lazy(() => import('./pages/Tasks'))
 const Home = lazy(() => import('./pages/Home'))
@@ -43,28 +44,49 @@ function PageLoader() {
   )
 }
 
+function DocumentTitle() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    const titles: Record<string, string> = {
+      '/': 'TaskForge — Team Workspace',
+      '/dashboard': 'Dashboard | TaskForge',
+      '/projects': 'Projects | TaskForge',
+      '/tasks': 'Tasks | TaskForge',
+      '/inbox': 'Inbox | TaskForge',
+      '/members': 'Team | TaskForge',
+      '/login': 'Log in | TaskForge',
+      '/register': 'Create account | TaskForge',
+      '/accept-invitation': 'Join your team | TaskForge',
+    }
+    document.title = titles[pathname] ?? 'TaskForge'
+  }, [pathname])
+  return null
+}
+
 function NotFound() {
+  const { isAuthenticated, isInitializing } = useAuth()
   return (
-    <main className="grid min-h-screen place-items-center bg-[#F6F6F4] px-5 text-stone-700">
-      <section className="max-w-md text-center">
-        <p className="text-[10px] font-medium uppercase tracking-[0.24em] text-teal-700/80">
+    <main className="grid min-h-screen place-items-center bg-[var(--app-bg)] px-5 text-[var(--app-text)]">
+      <section className="w-full max-w-md text-center">
+        <Link to="/" className="mx-auto inline-flex items-center gap-3 rounded-xl px-3 py-2 text-[var(--app-text)] transition hover:bg-[var(--app-surface-hover)] focus-visible:outline-2 focus-visible:outline-[var(--app-focus)]">
+          <Logo className="size-[68px]" /><span className="text-xl font-bold tracking-tight">TaskForge</span>
+        </Link>
+        <p className="mt-8 text-xs font-semibold uppercase tracking-[.18em] text-[var(--app-accent)]">
           Error 404
         </p>
 
-        <h1 className="mt-4 text-[28px] font-light tracking-tight text-stone-900">
+        <h1 className="mt-3 text-[32px] font-semibold tracking-tight">
           Page not found
         </h1>
 
-        <p className="mt-3 text-[13px] font-light leading-7 text-stone-400">
-          The page you are looking for does not exist.
+        <p className="mt-3 text-[15px] leading-7 text-[var(--app-muted)]">
+          This address does not exist or may have moved. Choose a safe place to continue.
         </p>
 
-        <Link
-          to="/"
-          className="mt-6 inline-flex min-h-10 items-center justify-center rounded-xl bg-teal-700 px-5 py-3 text-[12.5px] font-medium tracking-wide text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F6F6F4]"
-        >
-          Back to Work-Bench
-        </Link>
+        <div className="mt-7 flex flex-wrap justify-center gap-3">
+          <Link to="/" className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--app-accent)] px-5 text-sm font-semibold text-[var(--app-bg)] transition hover:bg-[var(--app-nav-hover)]">Go to Home</Link>
+          {!isInitializing && isAuthenticated && <Link to="/dashboard" className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--app-surface)] px-5 text-sm font-semibold text-[var(--app-text)] shadow-[var(--app-shadow)] transition hover:bg-[var(--app-surface-hover)]">Go to Dashboard</Link>}
+        </div>
       </section>
     </main>
   )
@@ -75,7 +97,7 @@ function ProtectedRoute({
 }: {
   children: React.ReactNode
 }) {
-  const { isAuthenticated, isInitializing } = useAuth()
+  const { isAuthenticated, isInitializing, sessionExpired } = useAuth()
   const location = useLocation()
 
   if (isInitializing) {
@@ -89,6 +111,7 @@ function ProtectedRoute({
         replace
         state={{
           from: `${location.pathname}${location.search}`,
+          message: sessionExpired ? 'Your session has expired. Please log in again.' : undefined,
         }}
       />
     )
@@ -98,31 +121,13 @@ function ProtectedRoute({
 }
 
 function LoginRoute() {
-  const location = useLocation()
-
-  const message = (
-    location.state as { message?: string } | null
-  )?.message
-
-  return (
-    <>
-      {message && (
-        <div
-          role="status"
-          className="fixed left-1/2 top-4 z-10 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-[12.5px] font-light text-emerald-800 shadow-[0_8px_24px_-14px_rgba(28,25,23,0.12)]"
-        >
-          {message}
-        </div>
-      )}
-
-      <Login />
-    </>
-  )
+  return <Login />
 }
 
 function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
+      <DocumentTitle />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<LoginRoute />} />

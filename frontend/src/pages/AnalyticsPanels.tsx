@@ -20,7 +20,7 @@ type ProjectData = {
 }
 
 export function ProgressBar({ percent, label }: { percent: number; label: string }) {
-  return <div role="progressbar" aria-label={label} aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} className="h-2 overflow-hidden rounded-full bg-white/10">
+  return <div role="progressbar" aria-label={label} aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} className="analytics-progress h-2 overflow-hidden rounded-full bg-white/10">
     <div className="h-full bg-teal-500 transition-all" style={{ width: `${percent}%` }} />
   </div>
 }
@@ -33,14 +33,14 @@ export function EmployeeAnalyticsPanel({ organizationId, employeeId, projectId, 
     skip: !organizationId || !employeeId, fetchPolicy: 'cache-and-network',
   })
   const value = data?.employeeAnalytics
-  return <section aria-label={title} className="rounded-3xl border border-white/[0.08] bg-[#0a0a0a] p-5 sm:p-6">
+  return <section aria-label={title} className="analytics-panel rounded-3xl border border-white/[0.08] bg-[#0a0a0a] p-5 sm:p-6">
     <h3 className="text-base font-medium text-white">{title}</h3>
     {loading && !value && <p role="status" className="mt-3 text-sm text-zinc-500">Loading employee analytics…</p>}
     {error && <p role="alert" className="mt-3 text-sm text-rose-300">Could not load employee analytics. <button type="button" onClick={() => void refetch()} className="underline">Retry</button></p>}
     {value && <>
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         {[['Assigned', value.assigned], ['Completed', value.completed], ['Pending', value.pending], ['In progress', value.inProgress], ['Overdue', value.overdue], ['On time', value.onTimeCompleted], ['Late', value.lateCompleted], ['Timing unknown', value.timingUnknown]].map(([label, count]) =>
-          <div key={label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3"><p className="text-xs text-zinc-500">{label}</p><p className="mt-1 text-xl text-white">{count}</p></div>)}
+          <div key={label} className="analytics-stat rounded-xl border border-white/[0.06] bg-white/[0.02] p-3"><p className="text-xs text-zinc-500">{label}</p><p className="mt-1 text-xl text-white">{count}</p></div>)}
       </div>
       <p className="mt-4 text-sm text-zinc-300">Completion rate: {value.completionRate}%</p>
       <ProgressBar percent={value.completionRate} label="Employee completion rate" />
@@ -58,7 +58,7 @@ export function ProjectAnalyticsPanel({ organizationId, projectId, canViewMember
     variables: { input: { organizationId, projectId } }, skip: !organizationId || !projectId, fetchPolicy: 'cache-and-network',
   })
   const value = data?.projectAnalytics
-  return <section aria-label="Project analytics" className="rounded-3xl border border-white/[0.08] bg-[#0a0a0a] p-5 sm:p-6">
+  return <section aria-label="Project analytics" className="analytics-panel rounded-3xl border border-white/[0.08] bg-[#0a0a0a] p-5 sm:p-6">
     <h3 className="text-base font-medium text-white">Project analytics</h3>
     {loading && !value && <p role="status" className="mt-3 text-sm text-zinc-500">Loading project analytics…</p>}
     {error && <p role="alert" className="mt-3 text-sm text-rose-300">Could not load project analytics. <button type="button" onClick={() => void refetch()} className="underline">Retry</button></p>}

@@ -12,8 +12,11 @@ import { AuthContext } from './authContext'
 import {
   clearTokens,
   getRefreshToken,
+  getSessionVersion,
+  onSessionExpired,
   setTokens,
 } from '../lib/auth-tokens'
+import { getRefreshedUser, pendingRotatedToken, refreshSession } from '../lib/session-refresh'
 
 export type User = {
   id: string
@@ -43,9 +46,6 @@ type LogoutResult = {
   logout: boolean
 }
 
-type RefreshResult = {
-  refresh: AuthPayload
-}
 
 const LOGIN_MUTATION = gql`
   mutation Login($input: LoginInput!) {
@@ -81,20 +81,6 @@ const REGISTER_WITH_INVITATION_MUTATION = gql`
   }
 `
 
-const REFRESH_MUTATION = gql`
-  mutation Refresh($input: RefreshTokenInput!) {
-    refresh(input: $input) {
-      accessToken
-      refreshToken
-      user {
-        id
-        name
-        email
-      }
-    }
-  }
-`
-
 const LOGOUT_MUTATION = gql`
   mutation Logout($input: RefreshTokenInput!) {
     logout(input: $input)
@@ -119,49 +105,24 @@ export type AuthContextValue = {  user: User | null
   ) => Promise<void>
   logout: () => Promise<void>
   refreshAccessToken: () => Promise<boolean>
+  sessionExpired: boolean
 }
 
 
 // Share one refresh request across StrictMode effect executions.
-let restoreSessionPromise: Promise<AuthPayload | null> | null = null
+let restoreSessionPromise: Promise<User | null> | null = null
+let restoreVersion = -1
 
-function restoreSession(): Promise<AuthPayload | null> {
-  if (restoreSessionPromise) {
+function restoreSession(): Promise<User | null> {
+  if (restoreSessionPromise && restoreVersion === getSessionVersion()) {
     return restoreSessionPromise
   }
 
-  const refreshToken = getRefreshToken()
-
-  if (!refreshToken) {
-    return Promise.resolve(null)
-  }
-
-  restoreSessionPromise = apolloClient
-    .mutate<RefreshResult>({
-      mutation: REFRESH_MUTATION,
-      variables: {
-        input: { refreshToken },
-      },
-      fetchPolicy: 'no-cache',
-    })
-    .then(({ data }) => {
-      const payload = data?.refresh
-
-      if (!payload) {
-        throw new Error('Session restoration failed.')
-      }
-
-      setTokens(payload.accessToken, payload.refreshToken)
-
-      return payload
-    })
-    .catch(() => {
-      clearTokens()
-      return null
-    })
-    .finally(() => {
-      restoreSessionPromise = null
-    })
+  if (!getRefreshToken()) return Promise.resolve(null)
+  const version = getSessionVersion()
+  restoreVersion = version
+  restoreSessionPromise = refreshSession(version).then(outcome => outcome === 'success' && getSessionVersion() === version ? getRefreshedUser() : null)
+    .finally(() => { if (restoreVersion === version) restoreSessionPromise = null })
 
   return restoreSessionPromise
 }
@@ -169,6 +130,7 @@ function restoreSession(): Promise<AuthPayload | null> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isInitializing, setIsInitializing] = useState(true)
+  const [sessionExpired, setSessionExpired] = useState(false)
 
   const [runLogin] = useMutation<LoginResult>(LOGIN_MUTATION)
   const [runRegister] = useMutation<RegisterResult>(REGISTER_MUTATION)
@@ -180,11 +142,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true
+    const version = getSessionVersion()
 
     void restoreSession()
       .then((payload) => {
-        if (active) {
-          setUser(payload?.user ?? null)
+        if (active && version === getSessionVersion()) {
+          setUser(payload)
         }
       })
       .finally(() => {
@@ -197,6 +160,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false
     }
   }, [])
+
+  useEffect(() => onSessionExpired(() => {
+    setUser(null)
+    setSessionExpired(true)
+    void apolloClient.clearStore()
+  }), [])
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -213,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setTokens(data.login.accessToken, data.login.refreshToken)
       setUser(data.login.user)
+      setSessionExpired(false)
 
       await apolloClient.clearStore()
     },
@@ -266,32 +236,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const logout = useCallback(async () => {
+    const version = getSessionVersion()
     const refreshToken = getRefreshToken()
+    const rotatedToken = pendingRotatedToken(version)
+    clearTokens()
+    const logoutVersion = getSessionVersion()
+    setUser(null)
+    setSessionExpired(false)
+    await apolloClient.clearStore()
 
     try {
-      if (refreshToken) {
+      const tokenToRevoke = await rotatedToken || refreshToken
+      if (tokenToRevoke) {
         await runLogout({
           variables: {
-            input: { refreshToken },
+            input: { refreshToken: tokenToRevoke },
           },
           fetchPolicy: 'no-cache',
         })
       }
     } finally {
-      clearTokens()
-      setUser(null)
-      await apolloClient.clearStore()
+      if (getSessionVersion() === logoutVersion) await apolloClient.clearStore()
     }
   }, [runLogout])
 
   const refreshAccessToken = useCallback(async () => {
+    const version = getSessionVersion()
     const payload = await restoreSession()
-    if (payload) {
-      setUser(payload.user)
+    if (payload && version === getSessionVersion()) {
+      setUser(payload)
       return true
     }
-    setUser(null)
-    await apolloClient.clearStore()
     return false
   }, [])
 
@@ -305,6 +280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       registerWithInvitation,
       logout,
       refreshAccessToken,
+      sessionExpired,
     }),
     [
       user,
@@ -314,6 +290,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       registerWithInvitation,
       logout,
       refreshAccessToken,
+      sessionExpired,
     ],
   )
 

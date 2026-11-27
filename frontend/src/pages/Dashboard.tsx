@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { gql } from '@apollo/client'
 import { useQuery } from '@apollo/client/react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { EmployeeAnalyticsPanel, ProjectAnalyticsPanel } from './AnalyticsPanels'
+import './workspace-pages.css'
+import './Dashboard.css'
 import {
   AlertIcon, ArrowRightIcon, CheckCircleIcon, ChevronDownIcon,
   ClockIcon, FolderIcon, ListIcon, PlayCircleIcon,
@@ -82,16 +84,16 @@ function Metric({ label, value, icon, tone = 'default' }: {
 }) {
   const style = metricStyles[tone]
   return (
-    <article className="group relative overflow-hidden rounded-3xl p-[1px] transition-all duration-300 hover:-translate-y-1">
+    <article className={`dashboard-metric dashboard-tone-${tone} group relative overflow-hidden rounded-3xl p-[1px] transition-all duration-300 hover:-translate-y-1`}>
       <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-      <div className="relative h-full rounded-[23px] border border-white/[0.06] bg-[#0a0a0a] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-colors group-hover:bg-[#0c0c0c]">
+      <div className="dashboard-metric-surface relative h-full rounded-[23px] border border-white/[0.06] bg-[#0a0a0a] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-colors group-hover:bg-[#0c0c0c]">
         <div className="flex items-start justify-between gap-4">
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-zinc-500 group-hover:text-zinc-400">{label}</p>
-          <span className={`grid place-items-center rounded-xl p-2.5 ring-1 ring-white/5 transition-all duration-300 group-hover:scale-110 ${style.bg} ${style.icon} ${style.shadow}`}>
+          <p className="dashboard-metric-label text-[10.5px] font-semibold uppercase tracking-[0.16em] text-zinc-500 group-hover:text-zinc-400">{label}</p>
+          <span className={`dashboard-metric-icon grid place-items-center rounded-xl p-2.5 ring-1 ring-white/5 transition-all duration-300 group-hover:scale-110 ${style.bg} ${style.icon} ${style.shadow}`}>
             {icon}
           </span>
         </div>
-        <p className="mt-4 text-[40px] font-light leading-none tracking-[-0.05em] text-white tabular-nums">
+        <p className="dashboard-metric-value mt-4 text-[40px] font-light leading-none tracking-[-0.05em] text-white tabular-nums">
           {value.toLocaleString()}
         </p>
       </div>
@@ -108,7 +110,7 @@ function TaskProgress({ summary }: { summary: DashboardSummary }) {
 
   if (!total) {
     return (
-      <div className="mt-4 rounded-3xl border border-white/[0.06] bg-[#0a0a0a] p-6 text-[13.5px] font-light text-zinc-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <div className="dashboard-empty-progress mt-4 rounded-3xl border border-white/[0.06] bg-[#0a0a0a] p-6 text-[13.5px] font-light text-zinc-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
         No tasks in this workspace yet. Progress will appear here soon.
       </div>
     )
@@ -122,21 +124,21 @@ function TaskProgress({ summary }: { summary: DashboardSummary }) {
   ]
 
   return (
-    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(240px,0.6fr)]">
-      <section className="relative overflow-hidden rounded-3xl border border-white/[0.06] bg-[#0a0a0a] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-8">
+    <div className="dashboard-progress-grid mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(240px,0.6fr)]">
+      <section className="dashboard-progress-card relative overflow-hidden rounded-3xl border border-white/[0.06] bg-[#0a0a0a] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-8">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-teal-400/80">Progress</p>
-            <h3 className="mt-2 text-[18px] font-medium tracking-tight text-white">Root task completion</h3>
+            <p className="dashboard-eyebrow text-[10.5px] font-semibold uppercase tracking-[0.16em] text-teal-400/80">Progress</p>
+            <h3 className="dashboard-card-title mt-2 text-[18px] font-medium tracking-tight text-white">Root task completion</h3>
           </div>
-          <p className="text-[32px] font-light leading-none tracking-[-0.04em] text-white tabular-nums">{percent}%</p>
+          <p className="dashboard-progress-value text-[32px] font-light leading-none tracking-[-0.04em] text-white tabular-nums">{percent}%</p>
         </div>
-        <div role="img" aria-label={`${completed} completed, ${inProgress} in progress, ${pending} pending of ${total}`} className="mt-6 flex h-2 overflow-hidden rounded-full bg-zinc-800/50">
+        <div role="img" aria-label={`${completed} completed, ${inProgress} in progress, ${pending} pending of ${total}`} className="dashboard-progress-bar mt-6 flex h-2 overflow-hidden rounded-full bg-zinc-800/50">
           {segments.map((s) =>
             s.count > 0 ? <div key={s.label} className={`${s.color} transition-[width] duration-700 ease-out shadow-[0_0_10px_rgba(0,0,0,0.5)]`} style={{ width: `${Math.min(100, (s.count / total) * 100)}%` }} /> : null,
           )}
         </div>
-        <ul className="mt-6 flex flex-wrap gap-x-8 gap-y-3 text-[13px] font-light tracking-wide text-zinc-400">
+        <ul className="dashboard-progress-legend mt-6 flex flex-wrap gap-x-8 gap-y-3 text-[13px] font-light tracking-wide text-zinc-400">
           {segments.map((s) => (
             <li key={s.label} className="flex items-center gap-2">
               <span className={`size-2 rounded-full ${s.color}`} />
@@ -147,10 +149,10 @@ function TaskProgress({ summary }: { summary: DashboardSummary }) {
         </ul>
       </section>
 
-      <section className="relative overflow-hidden rounded-3xl border border-amber-500/10 bg-gradient-to-br from-amber-500/[0.04] to-transparent p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-8">
+      <section className="dashboard-overdue-card relative overflow-hidden rounded-3xl border border-amber-500/10 bg-gradient-to-br from-amber-500/[0.04] to-transparent p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-8">
         <div className="absolute -right-6 -top-6 size-32 rounded-full bg-amber-500/10 blur-3xl" />
-        <p className="relative text-[10.5px] font-semibold uppercase tracking-[0.16em] text-amber-500">Overdue</p>
-        <p className="relative mt-3 text-[40px] font-light leading-none tracking-[-0.05em] text-white tabular-nums">{overdue.toLocaleString()}</p>
+        <p className="dashboard-eyebrow relative text-[10.5px] font-semibold uppercase tracking-[0.16em] text-amber-500">Overdue</p>
+        <p className="dashboard-overdue-value relative mt-3 text-[40px] font-light leading-none tracking-[-0.05em] text-white tabular-nums">{overdue.toLocaleString()}</p>
         <p className="relative mt-2 text-[13.5px] font-light text-zinc-400">{overdue === 1 ? 'task is overdue' : 'tasks are overdue'}</p>
         <p className="relative mt-6 border-t border-white/5 pt-4 text-[12.5px] font-light leading-relaxed text-zinc-500">
           Review overdue work and update status as your team progresses.
@@ -186,7 +188,7 @@ export default function Dashboard() {
   const [organizationId, setOrganizationId] = useState('')
 
   const { data: organizationsData, loading: organizationsLoading, error: organizationsError, refetch: refetchOrganizations } = useQuery<OrganizationsQueryData>(MY_ORGANIZATIONS, { fetchPolicy: 'cache-and-network' })
-  const organizations = organizationsData?.myOrganizations ?? []
+  const organizations = useMemo(() => organizationsData?.myOrganizations ?? [], [organizationsData])
 
   useEffect(() => {
     const syncOrganizationId = () => {
@@ -220,29 +222,29 @@ export default function Dashboard() {
   const visibleProjects = projects.slice(0, 5)
 
   return (
-    <div className="mx-auto w-full max-w-[1200px] pb-12">
+    <div className="modern-workspace-page dashboard-page mx-auto w-full max-w-[1440px] pb-12">
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-3xl border border-white/[0.06] bg-[#0a0a0a] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-1">
+      <section className="dashboard-hero relative overflow-hidden rounded-3xl border border-white/[0.06] bg-[#0a0a0a] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-1">
 
         {/* Deep Emerald + Grid Background */}
         <div className="emerald-bg absolute inset-0" />
         <div className="camo-grid absolute inset-0" />
         <div className="absolute inset-0 bg-gradient-to-br from-teal-500/[0.05] to-transparent" />
 
-        <div className="relative rounded-[22px] bg-gradient-to-b from-white/[0.02] to-transparent p-6 sm:p-10">
+        <div className="dashboard-hero-inner relative rounded-[22px] bg-gradient-to-b from-white/[0.02] to-transparent p-6 sm:p-10">
           <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-xl">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-teal-400">Workspace overview</p>
-              <p className="mt-4 text-[14.5px] font-light tracking-wide text-zinc-400">{getGreeting()}{user?.name ? `, ${user.name}` : ''}</p>
+              <p className="dashboard-eyebrow text-[10px] font-semibold uppercase tracking-[0.2em] text-teal-400">Workspace overview</p>
+              <p className="dashboard-greeting mt-4 text-[14.5px] font-light tracking-wide text-zinc-400">{getGreeting()}{user?.name ? `, ${user.name}` : ''}</p>
               <h1 className="mt-2 text-[38px] font-medium leading-[1.1] tracking-[-0.04em] text-white sm:text-[42px]">
                 Make progress, not just plans.
               </h1>
-              <p className="mt-3.5 max-w-md text-[15px] font-light leading-relaxed tracking-wide text-zinc-500">
+              <p className="dashboard-description mt-3.5 max-w-md text-[15px] font-light leading-relaxed tracking-wide text-zinc-500">
                 Your team&apos;s work, projects, and momentum — all in one place.
               </p>
             </div>
 
-            <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto">
+            <div className="dashboard-actions flex w-full flex-col gap-3 sm:flex-row lg:w-auto">
               {!organizationsLoading && organizations.length > 0 && (
                 <div className="relative min-w-0 flex-1 lg:w-64 lg:flex-none">
                   <select
@@ -265,7 +267,7 @@ export default function Dashboard() {
               </Link>
             </div>
           </div>
-          <div className="relative mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-white/[0.06] pt-6 text-[12.5px] font-light tracking-wide text-zinc-500">
+          <div className="dashboard-summary-meta relative mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-white/[0.06] pt-6 text-[12.5px] font-light tracking-wide text-zinc-500">
             <span className="flex items-center gap-2"><FolderIcon className="size-4 text-teal-500/70" />{summary?.totalProjects ?? (summaryLoading ? '—' : 0)} projects</span>
             <span className="hidden h-3 w-px bg-white/10 sm:block" />
             <span className="flex items-center gap-2"><ListIcon className="size-4 text-teal-500/70" />{summary?.totalTasks ?? (summaryLoading ? '—' : 0)} tasks</span>
@@ -288,7 +290,7 @@ export default function Dashboard() {
         </section>
       ) : (
         <>
-          <section aria-labelledby="metrics-heading" className="mt-10">
+          <section aria-labelledby="metrics-heading" className="dashboard-section mt-10">
             <div className="mb-5 flex items-end justify-between gap-3">
               <h2 id="metrics-heading" className="text-[20px] font-medium tracking-tight text-white">At a glance</h2>
               {summaryLoading && summary && <span role="status" className="text-[12.5px] font-light tracking-wide text-zinc-500 animate-pulse">Syncing…</span>}
@@ -300,7 +302,7 @@ export default function Dashboard() {
               <ErrorNotice message="Could not load metrics." onRetry={handleRetry} />
             ) : summary ? (
               <>
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
+                <div className="dashboard-metric-grid grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
                   <Metric label="Projects" value={summary.totalProjects ?? 0} icon={<FolderIcon className="size-4" />} />
                   <Metric label="Total tasks" value={summary.totalTasks ?? 0} icon={<ListIcon className="size-4" />} />
                   <Metric label="Pending" value={summary.pendingTasks ?? 0} icon={<ClockIcon className="size-4" />} tone="warning" />
@@ -314,12 +316,12 @@ export default function Dashboard() {
             ) : null}
           </section>
 
-          {visibleProjects[0] && <section className="mt-10" aria-label="Featured project analytics">
+          {visibleProjects[0] && <section className="dashboard-section mt-10" aria-label="Featured project analytics">
             <h2 className="mb-4 text-[20px] font-medium tracking-tight text-white">{visibleProjects[0].name || 'Project'} health</h2>
             <ProjectAnalyticsPanel organizationId={organizationId} projectId={visibleProjects[0].id} />
           </section>}
 
-          <section aria-labelledby="projects-heading" className="mt-12">
+          <section aria-labelledby="projects-heading" className="dashboard-section mt-12">
             <div className="mb-5 flex items-end justify-between gap-3">
               <h2 id="projects-heading" className="text-[20px] font-medium tracking-tight text-white">Recent projects</h2>
               <Link to="/projects" className="group inline-flex items-center gap-1.5 text-[13px] font-medium tracking-wide text-teal-400 transition-colors hover:text-teal-300">
@@ -341,13 +343,13 @@ export default function Dashboard() {
                 </Link>
               </div>
             ) : (
-              <ul className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+              <ul className="dashboard-project-grid grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
                 {visibleProjects.map((project) => {
                   const name = project.name?.trim() || 'Untitled project'
                   return (
-                    <li key={project.id} className="group relative overflow-hidden rounded-3xl p-[1px] transition-all duration-300 hover:-translate-y-1">
+                    <li key={project.id} className="dashboard-project-card group relative overflow-hidden rounded-3xl p-[1px] transition-all duration-300 hover:-translate-y-1">
                       <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                      <div className="relative flex h-full flex-col rounded-[23px] border border-white/[0.06] bg-[#0a0a0a] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-colors group-hover:bg-[#0c0c0c]">
+                      <div className="dashboard-project-surface relative flex h-full flex-col rounded-[23px] border border-white/[0.06] bg-[#0a0a0a] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-colors group-hover:bg-[#0c0c0c]">
 
                         {/* Hover Glow Left Line */}
                         <div className="absolute left-0 top-1/2 h-0 w-[2.5px] -translate-y-1/2 rounded-r-full bg-teal-500 opacity-0 shadow-[0_0_12px_rgba(20,184,166,0.8)] transition-all duration-300 group-hover:h-12 group-hover:opacity-100" />

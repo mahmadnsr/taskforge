@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { gql } from '@apollo/client'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { Link } from 'react-router-dom'
+import './workspace-pages.css'
+import './Inbox.css'
 import {
   BellIcon,
   CheckCircleIcon,
@@ -139,7 +141,7 @@ export default function Inbox() {
   const { data: orgsData } =
     useQuery<MyOrganizationsData>(MY_ORGANIZATIONS)
 
-  const orgs = orgsData?.myOrganizations ?? []
+  const orgs = useMemo(() => orgsData?.myOrganizations ?? [], [orgsData])
 
   useEffect(() => {
     const syncSelectedOrg = () => {
@@ -252,7 +254,7 @@ export default function Inbox() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="modern-workspace-page inbox-page space-y-8">
       {/* Header */}
       <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -279,6 +281,7 @@ export default function Inbox() {
           {orgs.length > 1 && (
             <div className="relative">
               <select
+                aria-label="Current organization"
                 value={selectedOrgId}
                 onChange={(e) => setSelectedOrgId(e.target.value)}
                 className="h-10 appearance-none rounded-xl border border-white/10 bg-[#0a0a0a] pl-4 pr-9 text-xs font-medium text-zinc-200 outline-none transition hover:border-white/20 focus:border-teal-500/50"
@@ -321,6 +324,7 @@ export default function Inbox() {
         <button
           type="button"
           onClick={() => setFilter('ALL')}
+          aria-pressed={filter === 'ALL'}
           className={`border-b-2 px-5 py-3 text-xs font-medium transition ${
             filter === 'ALL'
               ? 'border-teal-400 text-white'
@@ -332,6 +336,7 @@ export default function Inbox() {
         <button
           type="button"
           onClick={() => setFilter('UNREAD')}
+          aria-pressed={filter === 'UNREAD'}
           className={`border-b-2 px-5 py-3 text-xs font-medium transition ${
             filter === 'UNREAD'
               ? 'border-teal-400 text-white'
@@ -344,12 +349,12 @@ export default function Inbox() {
 
       {/* Notifications List */}
       {notifLoading && allNotifications.length === 0 ? (
-        <div className="grid place-items-center py-20 text-zinc-500">
+        <div role="status" className="grid place-items-center py-20 text-zinc-500">
           <div className="h-7 w-7 animate-spin rounded-full border-2 border-teal-500 border-t-transparent" />
           <p className="mt-4 text-xs">Loading notifications…</p>
         </div>
       ) : notifError ? (
-        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-8 text-center">
+        <div role="alert" className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-8 text-center">
           <p className="text-sm text-rose-300">{notifError.message}</p>
         </div>
       ) : notifications.length === 0 ? (
@@ -378,16 +383,16 @@ export default function Inbox() {
             return (
               <div
                 key={item.id}
-                className={`group relative flex flex-col justify-between gap-4 rounded-2xl border p-4 transition duration-200 sm:flex-row sm:items-center ${
+                className={`inbox-notification group relative flex flex-col justify-between gap-4 rounded-2xl border p-4 transition duration-200 sm:flex-row sm:items-center ${
                   isUnread
-                    ? 'border-white/[0.1] bg-white/[0.03] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                    : 'border-white/[0.04] bg-[#080808] opacity-75 hover:opacity-100'
+                    ? 'is-unread'
+                    : 'is-read'
                 }`}
               >
                 <div className="flex items-start gap-3 min-w-0">
                   <div
                     className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                      isUnread ? 'bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)]' : 'bg-transparent'
+                      isUnread ? 'bg-teal-400' : 'bg-transparent'
                     }`}
                   />
                   <div className="min-w-0">

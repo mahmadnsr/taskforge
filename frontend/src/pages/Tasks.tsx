@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/useAuth'
 import { TaskDetailsPanel } from './TaskDetailsPanel'
+import './workspace-pages.css'
 import { MY_ORGANIZATIONS, ORGANIZATION_MEMBERS, ORGANIZATION_PROJECTS, SEARCH_PROJECT_TASKS, TASK_PROJECT_MEMBERS } from './tasks.graphql'
 
 type Organization = { id: string; name: string; slug: string }
@@ -1106,7 +1107,7 @@ export default function Tasks() {
   >(DELETE_TASK)
 
   const page = tasksData?.searchProjectTasks
-  const tasks = page?.tasks ?? []
+  const tasks = useMemo(() => page?.tasks ?? [], [page])
   const totalCount = page?.totalCount ?? 0
   const hasNextPage = page?.hasNextPage ?? false
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1
@@ -1258,7 +1259,7 @@ export default function Tasks() {
 
   if (initialError) {
     return (
-      <section className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-6">
+      <section className="modern-workspace-page rounded-2xl border border-rose-500/20 bg-rose-500/10 p-6">
         <h2 className="text-[15px] font-medium text-rose-200">
           Unable to load tasks workspace
         </h2>
@@ -1271,7 +1272,7 @@ export default function Tasks() {
 
   if (organizations.length === 0) {
     return (
-      <section className="rounded-2xl border border-zinc-800 bg-[#0a0a0a] px-6 py-16 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <section className="modern-workspace-page rounded-2xl border border-zinc-800 bg-[#0a0a0a] px-6 py-16 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-teal-400">
           Workspace
         </p>
@@ -1284,7 +1285,7 @@ export default function Tasks() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#09090b] text-zinc-300 selection:bg-teal-500/30">
+    <div className="modern-workspace-page tasks-page relative min-h-screen bg-[#09090b] text-zinc-300 selection:bg-teal-500/30">
       {/* Premium Background Elements */}
       <div className="bg-grid-pattern pointer-events-none absolute inset-0 -z-10 opacity-40" />
       <div className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[600px] w-[1000px] -translate-x-1/2 animate-float rounded-[100%] bg-teal-500/[0.04] blur-[150px]" />

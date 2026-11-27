@@ -4,6 +4,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { BellIcon, ChevronsLeftIcon, ChevronsRightIcon, CloseIcon, DashboardIcon, FolderIcon, InboxIcon, ListIcon, LogOutIcon, MenuIcon, UsersIcon } from '../components/icons'
 import { Logo } from '../components/Logo'
+import { ThemeToggle } from '../components/ThemeToggle'
 import { useNotificationStream } from '../hooks/useNotificationStream'
 import { readTheme, setTheme, type Theme } from '../theme'
 import './AppLayout.css'
@@ -56,8 +57,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   const sidebarBody = (isCollapsed: boolean, onNavigate?: () => void) => <>
     <div className="app-sidebar-brand">
-      <Logo className="size-9 shrink-0" />
-      {!isCollapsed && <span className="app-brand-name">TaskForge</span>}
+      <NavLink to="/" onClick={onNavigate} className="app-sidebar-home" aria-label="TaskForge Home" title="TaskForge Home">
+        <Logo className="size-16 shrink-0" />
+        {!isCollapsed && <span className="app-brand-name">TaskForge</span>}
+      </NavLink>
       {!onNavigate && <button type="button" className="app-icon-button app-collapse-button" onClick={() => setCollapsed(value => !value)} aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!isCollapsed}>{isCollapsed ? <ChevronsRightIcon className="size-4" /> : <ChevronsLeftIcon className="size-4" />}</button>}
     </div>
     <nav className="app-sidebar-nav" aria-label="Primary navigation">
@@ -76,7 +79,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <div className="app-workspace"><header className="app-header">
       <button ref={menuButton} type="button" className="app-icon-button app-menu-button" onClick={() => setMobileOpen(true)} aria-label="Open navigation" aria-expanded={mobileOpen}><MenuIcon className="size-5" /></button>
       <div className="app-page-title"><span>Workspace</span><strong>{currentItem?.label ?? 'Dashboard'}</strong></div>
-      <div className="app-header-actions"><button type="button" className="app-theme-button" onClick={toggleTheme} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} aria-pressed={theme === 'dark'}>{theme === 'light' ? 'Dark theme' : 'Light theme'}</button><NavLink to="/inbox" onClick={clearUpdate} aria-label={hasUpdate ? 'Notifications, new updates' : 'Notifications'} className="app-icon-button app-notifications"><BellIcon className="size-5" />{hasUpdate && <span className="app-notification-dot" aria-hidden="true" />}</NavLink><div className="app-avatar app-header-avatar" aria-label={userName}>{initials}</div></div>
+      <div className="app-header-actions"><ThemeToggle theme={theme} onToggle={toggleTheme} className="app-theme-toggle" /><NavLink to="/inbox" onClick={clearUpdate} aria-label={hasUpdate ? 'New notifications' : 'Notifications'} className="app-icon-button app-notifications"><BellIcon className="size-5" />{hasUpdate && <span className="app-notification-dot" aria-hidden="true" />}</NavLink><div className="app-avatar app-header-avatar" aria-label={userName}>{initials}</div></div>
     </header><main id="main-content" className="app-main" tabIndex={-1}><div className="app-content">{children}</div></main></div>
   </div>
 }

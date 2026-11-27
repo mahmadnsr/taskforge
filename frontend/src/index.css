@@ -1,31 +1,59 @@
 @import "tailwindcss";
 
 :root, :root[data-theme='light'] {
-  --app-bg: #f8fafc;
+  --app-bg: #f5f8f8;
   --app-surface: #ffffff;
-  --app-surface-hover: #f1f5f9;
-  --app-text: #172033;
-  --app-muted: #526178;
-  --app-border: #dce3eb;
-  --app-accent: #0f766e;
-  --app-accent-surface: #e6f5f1;
-  --app-focus: #0f766e;
-  --app-shadow: 0 8px 24px -16px rgba(15, 23, 42, .28);
+  --app-surface-hover: #eef5f4;
+  --app-text: #15222a;
+  --app-muted: #4c6470;
+  --app-border: #dce8e5;
+  --app-accent: #08766d;
+  --app-accent-surface: #dff3ed;
+  --app-nav-hover: #075e58;
+  --app-control-hover: #e5f0ee;
+  --app-focus: #08766d;
+  --app-shadow: 0 12px 30px -22px rgba(20, 46, 49, .28);
   color-scheme: light;
 }
 
 :root[data-theme='dark'] {
-  --app-bg: #111827;
-  --app-surface: #1f2937;
-  --app-surface-hover: #293548;
-  --app-text: #f1f5f9;
-  --app-muted: #b9c5d5;
-  --app-border: #3b4b60;
-  --app-accent: #5eead4;
-  --app-accent-surface: #123e3c;
-  --app-focus: #5eead4;
-  --app-shadow: 0 8px 24px -16px rgba(0, 0, 0, .7);
+  --app-bg: #101a22;
+  --app-surface: #17252e;
+  --app-surface-hover: #20333d;
+  --app-text: #f4f8f7;
+  --app-muted: #b7c9cd;
+  --app-border: #2a4048;
+  --app-accent: #63d4c1;
+  --app-accent-surface: #123f3d;
+  --app-nav-hover: #9aeadb;
+  --app-control-hover: #263a43;
+  --app-focus: #74e0cd;
+  --app-shadow: 0 16px 36px -24px rgba(0, 0, 0, .72);
   color-scheme: dark;
+}
+
+.theme-toggle {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--app-muted);
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.theme-toggle:hover {
+  border-color: color-mix(in srgb, var(--app-accent) 35%, var(--app-border));
+  background: var(--app-control-hover);
+  color: var(--app-nav-hover);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--app-focus);
+  outline-offset: 2px;
 }
 
 /* Interactive controls show intent while disabled controls remain distinct. */
@@ -69,7 +97,7 @@
     margin: 0;
     background: var(--app-bg);
     color: var(--app-text);
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.6;
     letter-spacing: -0.01em;
     overflow-x: hidden;
@@ -150,4 +178,38 @@
 /* Deep Emerald Gradient Base */
 .emerald-bg {
   background: linear-gradient(135deg, #061210 0%, #0a0a0a 50%, #061210 100%);
+}
+
+/* Authentication keeps its existing layout, but shares the calm, readable
+   surface language used by the public and workspace views. */
+.auth-page { background: var(--app-bg) !important; color: var(--app-text) !important; }
+.auth-page .bg-grid-pattern, .auth-page .bg-noise, .auth-page .emerald-bg, .auth-page .camo-grid-dense { display: none; }
+.auth-page [class*="bg-[#0a0a0a]"], .auth-page [class*="bg-[#0c1322]"], .auth-page [class*="bg-[#080d18]"] { background: var(--app-surface) !important; }
+.auth-page [class*="border-white"] { border-color: var(--app-border) !important; }
+.auth-page [class*="text-white"], .auth-page [class*="text-zinc-200"], .auth-page [class*="text-slate-200"] { color: var(--app-text) !important; }
+.auth-page [class*="text-zinc-500"], .auth-page [class*="text-zinc-600"], .auth-page [class*="text-slate-400"], .auth-page [class*="text-slate-500"] { color: var(--app-muted) !important; }
+.auth-page [class*="text-teal-"], .auth-page [class*="text-cyan-"] { color: var(--app-accent) !important; }
+.auth-page input, .auth-page textarea { min-height: 46px; border-radius: 10px !important; background: var(--app-surface) !important; color: var(--app-text) !important; font-size: 15px !important; }
+.auth-page label { font-size: 14px !important; font-weight: 650 !important; }.auth-page [class*="text-[11px]"] { font-size: 12px !important; }.auth-page [class*="text-[13px]"] { font-size: 15px !important; }.auth-page [class*="text-[14px]"] { font-size: 15px !important; }
+.auth-page [class*="from-white"]:is(button, a), .auth-page button[class*="bg-cyan"] { border-color: transparent !important; background: var(--app-accent) !important; color: var(--app-bg) !important; box-shadow: none !important; }.auth-page [class*="from-white"]:is(button, a):hover, .auth-page button[class*="bg-cyan"]:hover { background: var(--app-nav-hover) !important; }
+
+/* Borderless theme controls */
+.theme-toggle,
+.theme-toggle.home-theme-toggle,
+.theme-toggle.app-theme-toggle {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.theme-toggle:hover,
+.theme-toggle.home-theme-toggle:hover,
+.theme-toggle.app-theme-toggle:hover {
+  background: var(--app-surface-hover);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 3px;
 }

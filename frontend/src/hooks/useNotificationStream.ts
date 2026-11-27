@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/useAuth'
 import { apolloClient } from '../lib/apollo'
 import { readNotificationStream } from '../lib/notification-stream'
+import { getSessionVersion } from '../lib/auth-tokens'
+import { refreshSession } from '../lib/session-refresh'
 
 export function useNotificationStream() {
-  const { user, refreshAccessToken } = useAuth()
+  const { user } = useAuth()
   const userId = user?.id
   const [hasUpdate, setHasUpdate] = useState(false)
 
@@ -13,6 +15,7 @@ export function useNotificationStream() {
     const controller = new AbortController()
     let reconnect: ReturnType<typeof setTimeout> | undefined
     let delay = 1000
+    const sessionVersion = getSessionVersion()
 
     const connect = async () => {
       try {
@@ -22,7 +25,10 @@ export function useNotificationStream() {
           void apolloClient.refetchQueries({ include: ['MyNotifications', 'UnreadCount'] })
         })
         if (controller.signal.aborted) return
-        if (result === 'unauthorized' && !(await refreshAccessToken())) return
+        if (result === 'unauthorized') {
+          const outcome = await refreshSession(sessionVersion)
+          if (outcome === 'expired' || outcome === 'stale' || controller.signal.aborted) return
+        }
         if (result === 'unauthorized') delay = 1000
       } catch {
         if (controller.signal.aborted) return
@@ -37,7 +43,7 @@ export function useNotificationStream() {
       controller.abort()
       clearTimeout(reconnect)
     }
-  }, [userId, refreshAccessToken])
+  }, [userId])
 
   return { hasUpdate, clearUpdate: () => setHasUpdate(false) }
 }

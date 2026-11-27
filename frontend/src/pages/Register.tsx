@@ -112,7 +112,7 @@ export default function Register() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050505] px-5 py-10 text-zinc-300 selection:bg-teal-500/30">
+    <main className="auth-page relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050505] px-5 py-10 text-zinc-300 selection:bg-teal-500/30">
       <div className="bg-grid-pattern absolute inset-0 -z-10" />
       <div className="absolute left-1/2 top-0 -z-10 h-[600px] w-[1000px] -translate-x-1/2 bg-teal-500/10 blur-[150px] animate-float rounded-[100%]" />
       <div className="absolute inset-0 bg-noise -z-10 mix-blend-overlay" />
@@ -121,15 +121,15 @@ export default function Register() {
 
         {/* Naya Reusable Logo, Size Bada */}
         <Link to="/" className="mb-8 flex items-center justify-center gap-3 transition-transform hover:scale-105">
-          <Logo className="size-14" />
-          <span className="text-[24px] font-semibold tracking-tight text-white">Work-Bench</span>
+          <Logo className="size-28" />
+          <span className="text-[24px] font-semibold tracking-tight text-white">TaskForge</span>
         </Link>
 
-        <div className="relative overflow-hidden rounded-3xl border border-white/[0.06] bg-[#0a0a0a] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+        <div className="relative overflow-hidden rounded-3xl border border-white/6 bg-[#0a0a0a] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
           <div className="emerald-bg absolute inset-0" />
           <div className="camo-grid-dense absolute inset-0" />
 
-          <div className="relative rounded-[22px] bg-gradient-to-b from-white/[0.02] to-transparent p-7 sm:p-9">
+          <div className="relative rounded-[22px] bg-linear-to-b from-white/[0.02] to-transparent p-7 sm:p-9">
             <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-teal-400">
               {isInvitationRegistration ? 'Team Invitation' : 'Get started'}
             </p>

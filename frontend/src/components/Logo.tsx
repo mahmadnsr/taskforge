@@ -1,11 +1,11 @@
 // src/components/Logo.tsx
-import logo from '../assets/logo.png'
+import logo from '../assets/taskforge-bee.webp'
 
-export function Logo({ className = "size-16" }: { className?: string }) {
+export function Logo({ className = "size-20" }: { className?: string }) {
   return (
     <img
       src={logo}
-      alt="Work-Bench Logo"
+      alt="TaskForge bee logo"
       className={`object-contain ${className}`}
     />
   )

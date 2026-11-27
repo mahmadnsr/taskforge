@@ -24,7 +24,7 @@ const projectMembers = gql`query ProjectMembers($organizationId: ID!, $projectId
   }
 }`
 
-function show(role: 'ADMIN' | 'MANAGER' | 'EMPLOYEE') {
+function show(role: 'ADMIN' | 'MANAGER' | 'EMPLOYEE', projectRows = [{ id: 'project-1', name: 'Launch', description: null, status: 'ACTIVE', createdAt: '2026-11-20T00:00:00Z', updatedAt: '2026-11-20T00:00:00Z' }]) {
   const members = [
     { id: 'member-1', role, user: { id: 'user-1', name: 'Alex', email: 'alex@example.test' } },
     { id: 'member-2', role: 'ADMIN', user: { id: 'admin-1', name: 'Admin User', email: 'admin@example.test' } },
@@ -39,7 +39,7 @@ function show(role: 'ADMIN' | 'MANAGER' | 'EMPLOYEE') {
   const mocks = [
     { request: { query: organizations }, result: { data: { myOrganizations: [{ id: 'org-1', name: 'QA Org', slug: 'qa-org' }] } } },
     { request: { query: organizationMembers, variables: { organizationId: 'org-1' } }, result: { data: { organizationMembers: members } } },
-    { request: { query: projects, variables: { organizationId: 'org-1', includeArchived: true } }, result: { data: { projects: [{ id: 'project-1', name: 'Launch', description: null, status: 'ACTIVE', createdAt: '2026-11-20T00:00:00Z', updatedAt: '2026-11-20T00:00:00Z' }] } } },
+    { request: { query: projects, variables: { organizationId: 'org-1', includeArchived: true } }, result: { data: { projects: projectRows } } },
     { request: { query: projectMembers, variables: { organizationId: 'org-1', projectId: 'project-1' } }, result: { data: { projectMembers: team } } },
   ]
   return render(<MemoryRouter><MockedProvider mocks={mocks}><Projects /></MockedProvider></MemoryRouter>)
@@ -66,5 +66,18 @@ describe('Project Team controls', () => {
     expect(await screen.findByText('Launch')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Project Team' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'New project' })).not.toBeInTheDocument()
+  })
+
+  it('filters projects by status and search without changing the selected organization', async () => {
+    show('EMPLOYEE', [
+      { id: 'project-1', name: 'Launch', description: null, status: 'ACTIVE', createdAt: '2026-11-20T00:00:00Z', updatedAt: '2026-11-20T00:00:00Z' },
+      { id: 'project-2', name: 'Legacy', description: null, status: 'ARCHIVED', createdAt: '2026-11-19T00:00:00Z', updatedAt: '2026-11-19T00:00:00Z' },
+    ])
+    expect(await screen.findByRole('heading', { name: 'Launch' })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter projects by status' }), { target: { value: 'ARCHIVED' } })
+    expect(screen.queryByRole('heading', { name: 'Launch' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Legacy' })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search projects' }), { target: { value: 'missing' } })
+    expect(screen.queryByRole('heading', { name: 'Legacy' })).not.toBeInTheDocument()
   })
 })

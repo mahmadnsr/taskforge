@@ -25,6 +25,15 @@ function show(role: 'ADMIN' | 'MANAGER' | 'EMPLOYEE') {
 }
 
 describe('organization invitation controls', () => {
+  it('uses the shared themed workspace surface', async () => {
+    const { container } = show('ADMIN')
+    await screen.findByRole('heading', { name: 'QA Org' })
+    expect(container.querySelector('main')).toHaveClass(
+      'modern-workspace-page',
+      'members-page',
+    )
+  })
+
   it('allows ADMIN to open the organization invitation form and choose roles', async () => {
     show('ADMIN')
     fireEvent.click(await screen.findByRole('button', { name: /Invite member/i }))

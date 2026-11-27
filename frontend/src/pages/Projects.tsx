@@ -4,6 +4,7 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { ProjectAnalyticsPanel } from './AnalyticsPanels'
+import './workspace-pages.css'
 
 const MY_ORGANIZATIONS = gql`
   query MyOrganizations {
@@ -589,6 +590,7 @@ function ProjectModal({
               type="button"
               onClick={onClose}
               disabled={saving}
+              aria-label="Close project form"
               className="rounded-lg p-2 text-zinc-500 transition hover:bg-white/10 hover:text-white"
             >
               <Icon name="close" />
@@ -774,7 +776,7 @@ export default function Projects() {
     ArchiveProjectVariables
   >(ARCHIVE_PROJECT)
 
-  const projects = projectsData?.projects ?? []
+  const projects = useMemo(() => projectsData?.projects ?? [], [projectsData])
 
   const filteredProjects = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
@@ -888,7 +890,7 @@ export default function Projects() {
   }
 
   return (
-    <main className="relative min-h-screen bg-[#050505] text-zinc-300 selection:bg-teal-500/30">
+    <main className="modern-workspace-page projects-page relative min-h-screen bg-[#050505] text-zinc-300 selection:bg-teal-500/30">
       {/* Background Elements */}
       <div className="bg-grid-pattern absolute inset-0 -z-10 pointer-events-none" />
       <div className="absolute left-1/2 top-0 -z-10 h-[600px] w-[1000px] -translate-x-1/2 bg-teal-500/5 blur-[150px] animate-float rounded-[100%] pointer-events-none" />
@@ -938,6 +940,7 @@ export default function Projects() {
             <button
               type="button"
               onClick={() => setPageNotice('')}
+              aria-label="Dismiss notice"
               className="rounded p-0.5 hover:bg-white/10"
             >
               <Icon name="close" size={16} />
@@ -951,6 +954,7 @@ export default function Projects() {
             <button
               type="button"
               onClick={() => setMutationError('')}
+              aria-label="Dismiss error"
               className="rounded p-0.5 hover:bg-white/10"
             >
               <Icon name="close" size={16} />

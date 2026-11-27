@@ -19,6 +19,7 @@ describe('analytics GraphQL panels', () => {
     expect(await screen.findByText('Completion rate: 50%')).toBeInTheDocument()
     expect(screen.getByRole('progressbar', { name: 'Employee completion rate' })).toHaveAttribute('aria-valuenow', '50')
     expect(screen.getByText('Launch')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'My workload' })).toHaveClass('analytics-panel')
   })
 
   it('shows a project error and retry action', async () => {

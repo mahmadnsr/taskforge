@@ -8,6 +8,7 @@ const PASSWORD_MAX_LENGTH = 128
 
 type LoginLocationState = {
   from?: string
+  message?: string
 }
 
 export default function Login() {
@@ -16,6 +17,7 @@ export default function Login() {
   const location = useLocation()
 
   const redirectTo = (location.state as LoginLocationState | null)?.from || '/dashboard'
+  const sessionMessage = (location.state as LoginLocationState | null)?.message
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -64,24 +66,24 @@ export default function Login() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050505] px-5 py-10 text-zinc-300 selection:bg-teal-500/30">
+    <main className="auth-page relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050505] px-5 py-10 text-zinc-300 selection:bg-teal-500/30">
       <div className="bg-grid-pattern absolute inset-0 -z-10" />
-      <div className="absolute left-1/2 top-0 -z-10 h-[600px] w-[1000px] -translate-x-1/2 bg-teal-500/10 blur-[150px] animate-float rounded-[100%]" />
+      <div className="absolute left-1/2 top-0 -z-10 h-150 w-250 -translate-x-1/2 bg-teal-500/10 blur-[150px] animate-float rounded-[100%]" />
       <div className="absolute inset-0 bg-noise -z-10 mix-blend-overlay" />
 
       <section className="w-full max-w-md">
 
         {/* Naya Reusable Logo, Size Bada */}
         <Link to="/" className="mb-8 flex items-center justify-center gap-3 transition-transform hover:scale-105">
-          <Logo className="size-14" />
-          <span className="text-[24px] font-semibold tracking-tight text-white">Work-Bench</span>
+          <Logo className="size-28" />
+          <span className="text-[24px] font-semibold tracking-tight text-white">TaskForge</span>
         </Link>
 
-        <div className="relative overflow-hidden rounded-3xl border border-white/[0.06] bg-[#0a0a0a] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+        <div className="relative overflow-hidden rounded-3xl border border-white/6 bg-[#0a0a0a] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
           <div className="emerald-bg absolute inset-0" />
           <div className="camo-grid-dense absolute inset-0" />
 
-          <div className="relative rounded-[22px] bg-gradient-to-b from-white/[0.02] to-transparent p-7 sm:p-9">
+          <div className="relative rounded-[22px] bg-linear-to-b from-white/[0.02] to-transparent p-7 sm:p-9">
             <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-teal-400">
               Your workspace awaits
             </p>
@@ -93,6 +95,12 @@ export default function Login() {
             <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
               Sign in to manage your projects and collaborate with your team.
             </p>
+
+            {sessionMessage && (
+              <p role="status" className="mt-5 rounded-xl bg-teal-400/10 px-4 py-3 text-[14px] leading-6 text-teal-200">
+                {sessionMessage}
+              </p>
+            )}
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-5">
               <div>
@@ -166,13 +174,13 @@ export default function Login() {
                   <span className="relative z-10">
                     {loading ? 'Signing in…' : 'Sign in'}
                   </span>
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
+                  <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
                 </button>
               </div>
             </form>
 
             <p className="mt-6 text-center text-[13px] text-zinc-500">
-              New to Work-Bench?{' '}
+              New to TaskForge?{' '}
               <Link to="/register" state={{ from: redirectTo }} className="font-medium text-teal-400 transition-colors hover:text-teal-300">
                 Create an account
               </Link>
