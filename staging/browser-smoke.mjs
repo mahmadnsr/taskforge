@@ -75,7 +75,14 @@ try {
       body: JSON.stringify({ query, variables }),
     });
     const result = await response.json();
-    if (!response.ok || result.errors?.length) throw new Error('Local staging browser fixture setup failed');
+    if (!response.ok || result.errors?.length) {
+      const codes = (result.errors ?? []).map(error =>
+        error.extensions?.code ?? 'UNKNOWN'
+      );
+      throw new Error(
+        `Local staging browser fixture setup failed: HTTP ${response.status}; codes=${codes.join(',')}`
+      );
+    }
     return result.data;
   };
   await graphql('mutation($input:RegisterInput!){register(input:$input){id}}',
@@ -141,7 +148,7 @@ try {
   await graphql('mutation($input:CreateTaskCommentInput!){createTaskComment(input:$input){id}}',
     { input: { organizationId, taskId: tasks[0], content: 'Browser QA notification' } }, employeeLogin.login.accessToken);
   await waitFor("Boolean(document.querySelector('[aria-label=\"New notifications\"]'))");
-  await evaluate("document.querySelector('a[title=\"Notifications\"]').click()");
+  await evaluate("document.querySelector('a[aria-label=\"New notifications\"]').click()");
   await waitFor("location.pathname === '/inbox' && document.body.textContent.includes('New comment on task')");
   console.log('Browser smoke passed: Chrome login, dependency add/remove, and live comment notification indicator without refresh.');
 } finally {

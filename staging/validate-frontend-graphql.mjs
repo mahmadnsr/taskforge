@@ -17,6 +17,7 @@ async function sourceFiles(directory) {
   const files = await Promise.all(entries.map(async (entry) => {
     const target = path.join(directory, entry.name);
     if (entry.isDirectory()) return sourceFiles(target);
+    if (/\.(test|spec)\.tsx?$/.test(entry.name)) return [];
     return /\.tsx?$/.test(entry.name) ? [target] : [];
   }));
   return files.flat();
