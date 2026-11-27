@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { SafeValidationPipe } from './common/graphql/safe-validation.js';
 import { ConfigService } from '@nestjs/config';
-import helmet from 'helmet';
+import { securityHeaders } from './config/security-headers.js';
 import { AppModule } from './app.module.js';
 import express from 'express';
 import { StructuredLogger } from './observability/structured-logger.service.js';
@@ -36,13 +36,7 @@ async function bootstrap() {
     }
   }
 
-  // Security headers. CSP dev me off, warna Apollo Sandbox page toot jata hai.
-  app.use(
-    helmet({
-      contentSecurityPolicy: isProd ? undefined : false,
-      crossOriginEmbedderPolicy: false,
-    }),
-  );
+  app.use(securityHeaders(isProd));
 
   // Sirf allowed origins browser se API call kar payenge.
   const origins = (config.get<string>('CORS_ORIGINS') ?? '')
