@@ -58,3 +58,25 @@ pids
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 /backend/notes/
+
+# Project architecture and contributor documentation are versioned.
+
+# Local source snapshots are retained in working trees, not published.
+/.auth-validation-backup-*/
+*.backup*
+*.layout-backup
+*.before-feature-patch
+*.pre-integration-backup
+*.bak
+*.heartbeat-[0-9]*
+*.day[0-9]*-backup*
+
+# Additional secret and local tooling protection
+.env.*
+!.env.example
+!.env.*.example
+.aws/
+*.pem
+*.key
+*.p12
+*.pfx

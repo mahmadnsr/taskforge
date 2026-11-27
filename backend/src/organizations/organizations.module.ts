@@ -7,9 +7,10 @@ import { InvitationsResolver } from './invitations.resolver.js';
 import { MemberManagementService } from './member-management.service.js';
 import { MemberManagementResolver } from './member-management.resolver.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
+import { EmailModule } from '../email/email.module.js';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, EmailModule],
   providers: [
     OrganizationsService,
     OrganizationsResolver,
@@ -19,6 +20,6 @@ import { PrismaModule } from '../prisma/prisma.module.js';
     MemberManagementService,
     MemberManagementResolver,
   ],
-  exports: [OrganizationsService],
+  exports: [OrganizationsService, InvitationsService],
 })
 export class OrganizationsModule {}

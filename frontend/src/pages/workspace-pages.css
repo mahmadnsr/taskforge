@@ -1,0 +1,166 @@
+/* Visual bridge for Dashboard and Projects while their data and permission logic stays intact. */
+.modern-workspace-page {
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+.dashboard-page h1,
+.projects-page h1,
+.tasks-page h1,
+.inbox-page h1,
+.members-page h1 {
+  font-size: clamp(28px, 3vw, 32px);
+  font-weight: 650;
+  line-height: 1.18;
+  letter-spacing: -.035em;
+}
+.dashboard-page h2,
+.projects-page h2,
+.tasks-page h2,
+.inbox-page h2,
+.members-page h2 {
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -.025em;
+}
+.modern-workspace-page :is(p, li, td, input, select, textarea, button) {
+  letter-spacing: normal;
+}
+.modern-workspace-page label {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: normal;
+}
+.modern-workspace-page thead { font-size: 13px; }
+.modern-workspace-page tbody { font-size: 14px; }
+.modern-workspace-page [class*="text-[9"],
+.modern-workspace-page [class*="text-[10px]"],
+.modern-workspace-page [class*="text-[10.5px]"],
+.modern-workspace-page [class*="text-[11px]"],
+.modern-workspace-page [class*="text-[11.5px]"] { font-size: 12.5px; }
+.modern-workspace-page [class*="text-[12"],
+.modern-workspace-page [class*="text-[13"] { font-size: 14px; }
+.modern-workspace-page .emerald-bg,
+.modern-workspace-page .camo-grid,
+.modern-workspace-page .camo-grid-dense,
+.modern-workspace-page .bg-grid-pattern,
+.modern-workspace-page .bg-noise,
+.modern-workspace-page [class*="animate-float"],
+.modern-workspace-page [class*="animate-[shimmer"],
+.modern-workspace-page [class*="blur-3xl"],
+.modern-workspace-page [class*="absolute"][class*="bg-gradient"] { display: none; }
+.modern-workspace-page [class*="bg-[#0a0a0a]"],
+.modern-workspace-page [class*="bg-[#09090b]"],
+.modern-workspace-page [class*="bg-[#080808]"],
+.modern-workspace-page [class*="bg-[#101012]"],
+.modern-workspace-page [class*="bg-[#050505]"],
+.modern-workspace-page [class*="bg-gradient-to-br"],
+.modern-workspace-page [class*="bg-gradient-to-b"] {
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow);
+}
+.modern-workspace-page [class*="border-white"],
+.modern-workspace-page [class*="border-zinc-700"],
+.modern-workspace-page [class*="border-zinc-800"] { border-color: var(--app-border); }
+.modern-workspace-page [class*="shadow-["],
+.modern-workspace-page [class*="shadow-2xl"] { box-shadow: var(--app-shadow); }
+.modern-workspace-page [class*="text-white"],
+.modern-workspace-page [class*="text-zinc-100"],
+.modern-workspace-page [class*="text-zinc-200"],
+.modern-workspace-page [class*="text-zinc-300"],
+.modern-workspace-page [class*="text-zinc-900"] { color: var(--app-text); }
+.modern-workspace-page [class*="text-zinc-400"],
+.modern-workspace-page [class*="text-zinc-500"],
+.modern-workspace-page [class*="text-zinc-600"],
+.modern-workspace-page [class*="text-zinc-700"] { color: var(--app-muted); }
+.modern-workspace-page [class*="text-teal-"],
+.modern-workspace-page [class*="text-emerald-"] { color: var(--app-accent); }
+.modern-workspace-page [class*="bg-white/[0.02]"],
+.modern-workspace-page [class*="bg-white/[0.05]"],
+.modern-workspace-page [class*="bg-white/5"],
+.modern-workspace-page [class*="bg-zinc-800"] { background: var(--app-surface-hover); }
+.modern-workspace-page [class*="bg-white/10"] { background: var(--app-surface-hover); }
+.modern-workspace-page [class*="divide-white"] > :not(:last-child) { border-color: var(--app-border); }
+.modern-workspace-page :is(input, select, textarea):not([type="hidden"]) {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  border-radius: 8px;
+  color: var(--app-text);
+  box-shadow: none;
+}
+.modern-workspace-page :is(input, select, textarea)::placeholder { color: var(--app-muted); opacity: .85; }
+.modern-workspace-page :is(input, select, textarea)[aria-invalid="true"] { border-color: #be123c; }
+.modern-workspace-page [class*="bg-gradient-to-b"][class*="from-white"]:is(button, a) {
+  background: var(--app-accent);
+  border-color: var(--app-accent);
+  color: var(--app-bg);
+  box-shadow: none;
+  transform: none;
+}
+.modern-workspace-page [class*="bg-gradient-to-b"][class*="from-white"]:is(button, a):hover { background: color-mix(in srgb, var(--app-accent) 85%, black); }
+.modern-workspace-page [class*="bg-gradient-to-b"][class*="from-white"]:is(button, a) * { color: inherit; }
+.modern-workspace-page button:not(:disabled):hover,
+.modern-workspace-page a[href]:hover { cursor: pointer; }
+.modern-workspace-page :is(button, a[href], input, select, textarea):focus-visible {
+  outline: 2px solid var(--app-focus);
+  outline-offset: 2px;
+}
+.modern-workspace-page :is(button, input, select, textarea):disabled { cursor: not-allowed; opacity: .55; }
+.modern-workspace-page :is([role="dialog"], [role="alertdialog"]) {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  box-shadow: var(--app-shadow);
+}
+.modern-workspace-page [class*="rounded-3xl"] { border-radius: 14px; }
+.modern-workspace-page [class*="rounded-full"]:is(input, select, button) { border-radius: 8px; }
+.modern-workspace-page article:hover { background: var(--app-surface-hover); }
+.modern-workspace-page [class*="hover:-translate-y"]:hover { transform: none; }
+.modern-workspace-page [class*="text-rose-200"],
+.modern-workspace-page [class*="text-rose-300"],
+.modern-workspace-page [class*="text-rose-400"] { color: #be123c; }
+.modern-workspace-page [class*="text-amber-200"],
+.modern-workspace-page [class*="text-amber-300"],
+.modern-workspace-page [class*="text-amber-400"],
+.modern-workspace-page [class*="text-amber-500"] { color: #92400e; }
+:root[data-theme='dark'] .modern-workspace-page [class*="text-rose-200"],
+:root[data-theme='dark'] .modern-workspace-page [class*="text-rose-300"],
+:root[data-theme='dark'] .modern-workspace-page [class*="text-rose-400"] { color: #fda4af; }
+:root[data-theme='dark'] .modern-workspace-page [class*="text-amber-200"],
+:root[data-theme='dark'] .modern-workspace-page [class*="text-amber-300"],
+:root[data-theme='dark'] .modern-workspace-page [class*="text-amber-400"],
+:root[data-theme='dark'] .modern-workspace-page [class*="text-amber-500"] { color: #fcd34d; }
+@media (max-width: 640px) {
+  .modern-workspace-page [class*="text-[42px]"],
+  .modern-workspace-page [class*="text-[38px]"] { font-size: 30px; }
+}
+
+
+/* TaskForge dark surface refinement */
+
+[data-theme="dark"] .modern-workspace-page
+:is(.rounded-3xl, .rounded-2xl):is(
+    [class*="border-white"],
+    [class*="border-zinc-800"]
+):not(.border-dashed):not(:focus-within) {
+    border-color: transparent;
+    border-radius: 16px;
+    box-shadow: var(--app-shadow);
+}
+
+[data-theme="dark"] .modern-workspace-page
+:is(.rounded-3xl, .rounded-2xl).border-dashed {
+    border-color: color-mix(
+        in srgb, var(--app-border) 45%, transparent
+    );
+    border-radius: 16px;
+}
+
+[data-theme="dark"] .modern-workspace-page
+:is(input, select, textarea) {
+    border-radius: 10px;
+}
+
+[data-theme="dark"] .modern-workspace-page
+[class*="rounded-[22px]"] {
+    border-radius: 15px;
+}

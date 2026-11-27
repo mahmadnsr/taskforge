@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { TaskStatus } from '@prisma/client';
+import { Role, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { DashboardSummary } from './entities/dashboard-summary.entity.js';
 
@@ -18,6 +18,7 @@ export class DashboardService {
       },
       select: {
         id: true,
+        role: true,
       },
     });
 
@@ -27,16 +28,50 @@ export class DashboardService {
       );
     }
 
+    const isAdmin = membership.role === Role.ADMIN;
+
+    const projectMemberFilter = isAdmin
+      ? {}
+      : {
+          members: {
+            some: {
+              userId,
+              organizationId,
+            },
+          },
+        };
+
+    const projectWhere = {
+      organizationId,
+      ...projectMemberFilter,
+    };
+
+    const taskWhere = isAdmin
+      ? { organizationId, deletedAt: null, parentId: null }
+      : {
+          organizationId,
+          deletedAt: null,
+          parentId: null,
+          project: {
+            members: {
+              some: {
+                userId,
+                organizationId,
+              },
+            },
+          },
+        };
+
     const now = new Date();
 
     const [totalProjects, taskGroups, overdueTasks] = await Promise.all([
       this.prisma.project.count({
-        where: { organizationId },
+        where: projectWhere,
       }),
 
       this.prisma.task.groupBy({
         by: ['status'],
-        where: { organizationId },
+        where: taskWhere,
         _count: {
           _all: true,
         },
@@ -44,7 +79,7 @@ export class DashboardService {
 
       this.prisma.task.count({
         where: {
-          organizationId,
+          ...taskWhere,
           dueDate: {
             lt: now,
           },

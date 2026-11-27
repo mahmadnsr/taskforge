@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { QueuesModule } from './queues/queues.module.js';
-import { createObserveModule } from '@nestjs/observe';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { GraphQLModule } from '@nestjs/graphql';
@@ -21,39 +20,38 @@ import { TasksModule } from './tasks/tasks.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { HealthModule } from './health/health.module.js';
-
-export const { ObserveModule, ObserveInstrument } = createObserveModule();
+import { ObservabilityModule } from './observability/observability.module.js';
+import { MetricsService } from './observability/metrics.service.js';
+import { createGraphqlMetricsPlugin } from './observability/graphql-metrics.plugin.js';
 
 import { TaskCommentsModule } from './task-comments/task-comments.module.js';
 
 @Module({
   imports: [
     TaskCommentsModule,
-    // Distributed tracing, auto-correlated logs, request/job metrics, error
-    // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com
-    /*ObserveModule.forRoot({
-      appKey: 'YOUR_APP_KEY',
-      appSecret: 'YOUR_APP_SECRET',
-      serviceId: 'work-bench',
-    }),  */
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
     }),
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 100 }]),
-
-    GraphQLModule.forRoot<ApolloDriverConfig>({
+    ObservabilityModule,
+    GraphQLModule.forRootAsync<ApolloDriverConfig>({
       driver: ApolloDriver,
-      autoSchemaFile: true,
-      playground: process.env.NODE_ENV !== 'production',
-      context: ({ req }: { req: unknown }) => ({ req }),
-      includeStacktraceInErrorResponses: process.env.NODE_ENV !== 'production',
-      formatError: (formattedError, error) =>
-        formatGraphQLError(
-          formattedError,
-          error,
-          process.env.NODE_ENV === 'production',
-        ),
+      imports: [ObservabilityModule],
+      inject: [MetricsService],
+      useFactory: (metrics: MetricsService) => ({
+        autoSchemaFile: true,
+        playground: process.env.NODE_ENV !== 'production',
+        context: ({ req }: { req: unknown }) => ({ req }),
+        includeStacktraceInErrorResponses: false,
+        plugins: [createGraphqlMetricsPlugin(metrics)],
+        formatError: (formattedError, error) =>
+          formatGraphQLError(
+            formattedError,
+            error,
+            process.env.NODE_ENV === 'production',
+          ),
+      }),
     }),
     PrismaModule,
     UsersModule,

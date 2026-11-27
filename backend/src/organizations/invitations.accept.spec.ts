@@ -4,6 +4,7 @@ import type { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { InvitationsService, hashToken } from './invitations.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import type { EmailService } from '../email/email.service.js';
 
 describe('InvitationsService.acceptInvitation', () => {
   const userFindUnique = vi.fn();
@@ -14,7 +15,10 @@ describe('InvitationsService.acceptInvitation', () => {
   const orgFindUniqueOrThrow = vi.fn();
 
   const tx = {
-    organizationInvitation: { updateMany },
+    organizationInvitation: {
+      findUnique: inviteFindUnique,
+      updateMany,
+    },
     organizationMember: { create: memberCreate },
     organization: { findUniqueOrThrow: orgFindUniqueOrThrow },
   };
@@ -24,7 +28,9 @@ describe('InvitationsService.acceptInvitation', () => {
     organizationInvitation: { findUnique: inviteFindUnique },
     $transaction: transaction,
   } as unknown as PrismaService;
+
   const config = { get: vi.fn() } as unknown as ConfigService;
+  const emailService = {} as EmailService;
 
   let service: InvitationsService;
 
@@ -42,26 +48,38 @@ describe('InvitationsService.acceptInvitation', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+
     userFindUnique.mockResolvedValue({ email: 'new@test.com' });
     inviteFindUnique.mockResolvedValue(validInvite());
     updateMany.mockResolvedValue({ count: 1 });
     memberCreate.mockResolvedValue({ id: 'm1' });
+
     orgFindUniqueOrThrow.mockResolvedValue({
       id: 'o1',
       name: 'Org',
       slug: 'org',
     });
-    transaction.mockImplementation((cb: (t: typeof tx) => unknown) => cb(tx));
-    service = new InvitationsService(prisma, config);
+
+    transaction.mockImplementation(
+      (cb: (t: typeof tx) => unknown) => cb(tx),
+    );
+
+    service = new InvitationsService(prisma, config, emailService);
   });
 
   it('adds the user with the invited role and marks the invite accepted', async () => {
     const org = await service.acceptInvitation('u9', 'raw-token');
 
     expect(org).toEqual({ id: 'o1', name: 'Org', slug: 'org' });
+
     expect(memberCreate).toHaveBeenCalledWith({
-      data: { userId: 'u9', organizationId: 'o1', role: 'EMPLOYEE' },
+      data: {
+        userId: 'u9',
+        organizationId: 'o1',
+        role: 'EMPLOYEE',
+      },
     });
+
     expect(updateMany.mock.calls[0][0].data.acceptedAt).toBeInstanceOf(Date);
   });
 
@@ -75,17 +93,24 @@ describe('InvitationsService.acceptInvitation', () => {
 
   it('rejects an unknown token', async () => {
     inviteFindUnique.mockResolvedValue(null);
-    await expect(service.acceptInvitation('u9', 'x')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
-    expect(transaction).not.toHaveBeenCalled();
+
+    await expect(
+      service.acceptInvitation('u9', 'x'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(transaction).toHaveBeenCalled();
   });
 
   it('rejects an expired invitation', async () => {
-    inviteFindUnique.mockResolvedValue({ ...validInvite(), expiresAt: past() });
-    await expect(service.acceptInvitation('u9', 't')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    inviteFindUnique.mockResolvedValue({
+      ...validInvite(),
+      expiresAt: past(),
+    });
+
+    await expect(
+      service.acceptInvitation('u9', 't'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
     expect(memberCreate).not.toHaveBeenCalled();
   });
 
@@ -94,30 +119,41 @@ describe('InvitationsService.acceptInvitation', () => {
       ...validInvite(),
       acceptedAt: new Date(),
     });
-    await expect(service.acceptInvitation('u9', 't')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+
+    await expect(
+      service.acceptInvitation('u9', 't'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
     expect(memberCreate).not.toHaveBeenCalled();
   });
 
   it('rejects when the logged-in email does not match the invite', async () => {
-    userFindUnique.mockResolvedValue({ email: 'someone-else@test.com' });
-    await expect(service.acceptInvitation('u9', 't')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
-    expect(transaction).not.toHaveBeenCalled();
+    userFindUnique.mockResolvedValue({
+      email: 'someone-else@test.com',
+    });
+
+    await expect(
+      service.acceptInvitation('u9', 't'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(transaction).toHaveBeenCalled();
   });
 
   it('matches the email case-insensitively', async () => {
     userFindUnique.mockResolvedValue({ email: ' New@Test.COM ' });
-    await expect(service.acceptInvitation('u9', 't')).resolves.toBeDefined();
+
+    await expect(
+      service.acceptInvitation('u9', 't'),
+    ).resolves.toBeDefined();
   });
 
   it('rejects when another request claimed the invite first (race)', async () => {
     updateMany.mockResolvedValue({ count: 0 });
-    await expect(service.acceptInvitation('u9', 't')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+
+    await expect(
+      service.acceptInvitation('u9', 't'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
     expect(memberCreate).not.toHaveBeenCalled();
   });
 
@@ -128,11 +164,11 @@ describe('InvitationsService.acceptInvitation', () => {
         clientVersion: 'test',
       }),
     );
-    await expect(service.acceptInvitation('u9', 't')).rejects.toBeInstanceOf(
-      ConflictException,
-    );
-  });
 
+    await expect(
+      service.acceptInvitation('u9', 't'),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
 
   it('rejects when the accepting user does not exist', async () => {
     userFindUnique.mockResolvedValue(null);

@@ -1,0 +1,215 @@
+@import "tailwindcss";
+
+:root, :root[data-theme='light'] {
+  --app-bg: #f5f8f8;
+  --app-surface: #ffffff;
+  --app-surface-hover: #eef5f4;
+  --app-text: #15222a;
+  --app-muted: #4c6470;
+  --app-border: #dce8e5;
+  --app-accent: #08766d;
+  --app-accent-surface: #dff3ed;
+  --app-nav-hover: #075e58;
+  --app-control-hover: #e5f0ee;
+  --app-focus: #08766d;
+  --app-shadow: 0 12px 30px -22px rgba(20, 46, 49, .28);
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --app-bg: #101a22;
+  --app-surface: #17252e;
+  --app-surface-hover: #20333d;
+  --app-text: #f4f8f7;
+  --app-muted: #b7c9cd;
+  --app-border: #2a4048;
+  --app-accent: #63d4c1;
+  --app-accent-surface: #123f3d;
+  --app-nav-hover: #9aeadb;
+  --app-control-hover: #263a43;
+  --app-focus: #74e0cd;
+  --app-shadow: 0 16px 36px -24px rgba(0, 0, 0, .72);
+  color-scheme: dark;
+}
+
+.theme-toggle {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--app-muted);
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.theme-toggle:hover {
+  border-color: color-mix(in srgb, var(--app-accent) 35%, var(--app-border));
+  background: var(--app-control-hover);
+  color: var(--app-nav-hover);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--app-focus);
+  outline-offset: 2px;
+}
+
+/* Interactive controls show intent while disabled controls remain distinct. */
+@layer base {
+  button:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="submit"]:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]) { cursor: pointer; }
+
+  button:disabled,
+  select:disabled,
+  input[type="checkbox"]:disabled,
+  input[type="radio"]:disabled,
+  input[type="submit"]:disabled { cursor: not-allowed; }
+
+  :is(button, a[href], select, input[type="checkbox"], input[type="radio"], [role="button"], [role="tab"]):focus-visible {
+    outline: 2px solid var(--app-focus);
+    outline-offset: 2px;
+  }
+}
+
+
+@layer base {
+  :root {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    color: var(--app-text);
+    background: var(--app-bg);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+    margin: 0;
+    background: var(--app-bg);
+    color: var(--app-text);
+    font-size: 16px;
+    line-height: 1.6;
+    letter-spacing: -0.01em;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: inherit;
+    margin-top: 0;
+    color: inherit;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+  }
+
+  p { margin-top: 0; }
+
+  ::selection { background: var(--app-accent-surface); color: var(--app-text); }
+
+  input, select, textarea { accent-color: var(--app-accent); }
+  :is(input, select, textarea):focus-visible { outline: 2px solid var(--app-focus); outline-offset: 2px; }
+  :is(button, input, select, textarea):disabled { opacity: .6; }
+}
+
+/* Premium Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--app-border); border-radius: 999px; border: 2px solid var(--app-bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--app-muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+/* Animated Background Grid (for whole page) */
+.bg-grid-pattern {
+  background-size: 50px 50px;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  mask-image: radial-gradient(ellipse at 50% 50%, black 20%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, black 20%, transparent 70%);
+  animation: grid-move 20s linear infinite;
+}
+
+@keyframes grid-move {
+  0% { background-position: 0 0; }
+  100% { background-position: 50px 50px; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.4; }
+  50% { transform: translateY(-20px) scale(1.05); opacity: 0.6; }
+}
+
+.animate-float {
+  animation: float 8s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+.bg-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+}
+
+/* NAYA: Visible Camouflage Grid */
+.camo-grid {
+  background-size: 32px 32px;
+  background-image:
+    linear-gradient(to right, rgba(52, 211, 153, 0.15) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(52, 211, 153, 0.15) 1px, transparent 1px);
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+}
+
+/* Deep Emerald Gradient Base */
+.emerald-bg {
+  background: linear-gradient(135deg, #061210 0%, #0a0a0a 50%, #061210 100%);
+}
+
+/* Authentication keeps its existing layout, but shares the calm, readable
+   surface language used by the public and workspace views. */
+.auth-page { background: var(--app-bg) !important; color: var(--app-text) !important; }
+.auth-page .bg-grid-pattern, .auth-page .bg-noise, .auth-page .emerald-bg, .auth-page .camo-grid-dense { display: none; }
+.auth-page [class*="bg-[#0a0a0a]"], .auth-page [class*="bg-[#0c1322]"], .auth-page [class*="bg-[#080d18]"] { background: var(--app-surface) !important; }
+.auth-page [class*="border-white"] { border-color: var(--app-border) !important; }
+.auth-page [class*="text-white"], .auth-page [class*="text-zinc-200"], .auth-page [class*="text-slate-200"] { color: var(--app-text) !important; }
+.auth-page [class*="text-zinc-500"], .auth-page [class*="text-zinc-600"], .auth-page [class*="text-slate-400"], .auth-page [class*="text-slate-500"] { color: var(--app-muted) !important; }
+.auth-page [class*="text-teal-"], .auth-page [class*="text-cyan-"] { color: var(--app-accent) !important; }
+.auth-page input, .auth-page textarea { min-height: 46px; border-radius: 10px !important; background: var(--app-surface) !important; color: var(--app-text) !important; font-size: 15px !important; }
+.auth-page label { font-size: 14px !important; font-weight: 650 !important; }.auth-page [class*="text-[11px]"] { font-size: 12px !important; }.auth-page [class*="text-[13px]"] { font-size: 15px !important; }.auth-page [class*="text-[14px]"] { font-size: 15px !important; }
+.auth-page [class*="from-white"]:is(button, a), .auth-page button[class*="bg-cyan"] { border-color: transparent !important; background: var(--app-accent) !important; color: var(--app-bg) !important; box-shadow: none !important; }.auth-page [class*="from-white"]:is(button, a):hover, .auth-page button[class*="bg-cyan"]:hover { background: var(--app-nav-hover) !important; }
+
+/* Borderless theme controls */
+.theme-toggle,
+.theme-toggle.home-theme-toggle,
+.theme-toggle.app-theme-toggle {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.theme-toggle:hover,
+.theme-toggle.home-theme-toggle:hover,
+.theme-toggle.app-theme-toggle:hover {
+  background: var(--app-surface-hover);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 3px;
+}

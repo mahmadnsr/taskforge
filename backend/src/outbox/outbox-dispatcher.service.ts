@@ -43,7 +43,7 @@ export class OutboxDispatcherService
 
     this.timer.unref();
     void this.dispatchBatch();
-    this.logger.log(`Outbox dispatcher started; workerId=${this.workerId}`);
+    this.logger.log({ event: 'outbox.dispatcher.started', message: 'Outbox dispatcher started' });
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -58,7 +58,7 @@ export class OutboxDispatcherService
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
 
-    this.logger.log('Outbox dispatcher stopped.');
+    this.logger.log({ event: 'outbox.dispatcher.stopped', message: 'Outbox dispatcher stopped' });
   }
 
   async dispatchBatch(): Promise<void> {
@@ -82,10 +82,7 @@ export class OutboxDispatcherService
         processedCount += 1;
       }
     } catch (error) {
-      this.logger.error(
-        'Outbox batch failed.',
-        error instanceof Error ? error.stack : String(error),
-      );
+      this.logger.error({ event: 'outbox.batch.failed', message: 'Outbox batch failed', error });
     } finally {
       const unprocessedEvents = events.slice(processedCount);
 
@@ -103,10 +100,11 @@ export class OutboxDispatcherService
             },
           });
         } catch (error) {
-          this.logger.error(
-            'Could not release locks for unprocessed outbox events. Stale-lock recovery will handle them.',
-            error instanceof Error ? error.stack : String(error),
-          );
+          this.logger.error({
+            event: 'outbox.lock_release.failed',
+            message: 'Could not release locks for unprocessed outbox events; stale-lock recovery will retry',
+            error,
+          });
         }
       }
 
@@ -244,19 +242,26 @@ export class OutboxDispatcherService
       });
 
       if (nextAttempts >= MAX_ATTEMPTS) {
-        this.logger.error(
-          `Outbox event ${event.id} exhausted its ${MAX_ATTEMPTS} attempts. It remains unpublished and requires operational review.`,
-        );
+        this.logger.error({
+          event: 'outbox.event.exhausted',
+          message: 'Outbox event exhausted publication attempts',
+          attempts: MAX_ATTEMPTS,
+        });
       } else {
-        this.logger.warn(
-          `Outbox event ${event.id} failed (attempt ${nextAttempts}/${MAX_ATTEMPTS}): ${message}`,
-        );
+        this.logger.warn({
+          event: 'outbox.event.retry_scheduled',
+          message: 'Outbox event publication failed; retry scheduled',
+          attempt: nextAttempts,
+          maximum_attempts: MAX_ATTEMPTS,
+          retry_delay_ms: delayMs,
+        });
       }
     } catch (recordError) {
-      this.logger.error(
-        `Could not record failure for outbox event ${event.id}. Its lock will be recovered after timeout.`,
-        recordError instanceof Error ? recordError.stack : String(recordError),
-      );
+      this.logger.error({
+        event: 'outbox.failure_record.failed',
+        message: 'Could not record outbox failure; stale-lock recovery will retry',
+        error: recordError,
+      });
     }
   }
 }

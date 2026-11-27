@@ -1,0 +1,26 @@
+.inbox-page { max-width: 1100px; margin-inline: auto; }
+.inbox-page h1 { color: var(--app-text); font-size: clamp(28px, 4vw, 36px); font-weight: 650; }
+.inbox-page .inbox-notification { border-color: var(--app-border); background: var(--app-surface); color: var(--app-text); box-shadow: var(--app-shadow); opacity: 1; }
+.inbox-page .inbox-notification.is-unread { border-left: 3px solid var(--app-accent); background: var(--app-accent-surface); }
+.inbox-page .inbox-notification.is-read { border-left: 3px solid var(--app-border); }
+.inbox-page .inbox-notification:hover { background: var(--app-surface-hover); }
+.inbox-page .inbox-notification p { color: var(--app-text); font-weight: 500; }
+.inbox-page .inbox-notification [class*="text-zinc-500"] { color: var(--app-muted); }
+.inbox-page .inbox-notification [class*="text-violet"] { color: #6d28d9; }
+.inbox-page .inbox-notification [class*="text-amber"] { color: #92400e; }
+.inbox-page .inbox-notification [class*="text-emerald"],
+.inbox-page .inbox-notification [class*="text-teal"] { color: var(--app-accent); }
+.inbox-page .inbox-notification a, .inbox-page .inbox-notification button { background: var(--app-surface); border: 1px solid var(--app-border); color: var(--app-text); }
+.inbox-page .inbox-notification a:hover, .inbox-page .inbox-notification button:hover { background: var(--app-surface-hover); }
+:root[data-theme='dark'] .inbox-page .inbox-notification [class*="text-violet"] { color: #c4b5fd; }
+:root[data-theme='dark'] .inbox-page .inbox-notification [class*="text-amber"] { color: #fcd34d; }
+@media (max-width: 640px) { .inbox-page .inbox-notification { gap: 12px; } }
+
+
+/* TaskForge dark inbox refinement */
+
+[data-theme="dark"] .inbox-page .inbox-notification {
+    border-color: transparent;
+    border-radius: 14px;
+    box-shadow: var(--app-shadow);
+}

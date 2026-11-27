@@ -3,12 +3,15 @@ import { Test } from '@nestjs/testing';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { verifyPassword } from './password.util.js';
 
 import { AuthService } from './auth.service.js';
 import { TokenService } from './token.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { UsersService } from '../users/users.service.js';
 import { OrganizationsService } from '../organizations/organizations.service.js';
+import { InvitationsService } from '../organizations/invitations.service.js';
+import { RegisterWithInvitationInput } from './dto/register-with-invitation.input.js';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -25,6 +28,10 @@ describe('AuthService', () => {
 
   let organizationsService: {
     createWithAdmin: ReturnType<typeof vi.fn>;
+  };
+
+  let invitationsService: {
+    acceptInvitationInTransaction: ReturnType<typeof vi.fn>;
   };
 
   let tokenService: {
@@ -61,6 +68,10 @@ describe('AuthService', () => {
       createWithAdmin: vi.fn(),
     };
 
+    invitationsService = {
+      acceptInvitationInTransaction: vi.fn(),
+    };
+
     tokenService = {
       signAccessToken: vi.fn(),
       issueRefreshToken: vi.fn(),
@@ -76,6 +87,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: UsersService, useValue: usersService },
         { provide: OrganizationsService, useValue: organizationsService },
+        { provide: InvitationsService, useValue: invitationsService },
         { provide: TokenService, useValue: tokenService },
       ],
     }).compile();
@@ -129,10 +141,7 @@ describe('AuthService', () => {
       expect(createCall[1].passwordHash).not.toBe(input.password);
 
       expect(
-        await bcrypt.compare(
-          input.password,
-          createCall[1].passwordHash,
-        ),
+        await verifyPassword(input.password, createCall[1].passwordHash),
       ).toBe(true);
 
       expect(organizationsService.createWithAdmin).toHaveBeenCalledWith(
@@ -187,6 +196,147 @@ describe('AuthService', () => {
       prisma.$transaction.mockRejectedValue(error);
 
       await expect(service.register(input)).rejects.toThrow(
+        'Database unavailable',
+      );
+    });
+  });
+
+  describe('registerWithInvitation', () => {
+    const input: RegisterWithInvitationInput = {
+      name: 'Ahmad',
+      email: '  AHMAD@EXAMPLE.COM  ',
+      password: 'StrongPassword123!',
+      invitationToken: 'valid-invitation-token',
+    };
+
+    const tx = {
+      user: {},
+      organizationInvitation: {},
+      organizationMember: {},
+    };
+
+    beforeEach(() => {
+      usersService.findByEmail.mockResolvedValue(null);
+
+      usersService.create.mockResolvedValue(user);
+
+      invitationsService.acceptInvitationInTransaction.mockResolvedValue({
+        id: 'org-1',
+        name: 'TaskForge Team',
+      });
+
+      prisma.$transaction.mockImplementation(
+        async (callback: (transaction: typeof tx) => Promise<unknown>) =>
+          callback(tx),
+      );
+    });
+
+    it('should normalize email and create the user and accept the invitation in one transaction', async () => {
+      const result = await service.registerWithInvitation(input);
+
+      expect(usersService.findByEmail).toHaveBeenCalledWith(
+        'ahmad@example.com',
+      );
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+
+      expect(usersService.create).toHaveBeenCalledTimes(1);
+
+      const [transaction, createInput] = usersService.create.mock.calls[0];
+
+      expect(transaction).toBe(tx);
+
+      expect(createInput).toMatchObject({
+        name: 'Ahmad',
+        email: 'ahmad@example.com',
+      });
+
+      expect(createInput.passwordHash).not.toBe(input.password);
+
+      expect(
+        await verifyPassword(input.password, createInput.passwordHash),
+      ).toBe(true);
+
+      expect(
+        invitationsService.acceptInvitationInTransaction,
+      ).toHaveBeenCalledTimes(1);
+
+      expect(
+        invitationsService.acceptInvitationInTransaction,
+      ).toHaveBeenCalledWith(
+        tx,
+        user.id,
+        'ahmad@example.com',
+        input.invitationToken,
+      );
+
+      expect(result).toEqual(user);
+    });
+
+    it('should reject registration when the email already exists', async () => {
+      usersService.findByEmail.mockResolvedValue(user);
+
+      await expect(service.registerWithInvitation(input)).rejects.toThrow(
+        ConflictException,
+      );
+
+      expect(usersService.findByEmail).toHaveBeenCalledWith(
+        'ahmad@example.com',
+      );
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(usersService.create).not.toHaveBeenCalled();
+
+      expect(
+        invitationsService.acceptInvitationInTransaction,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should reject registration when invitation acceptance fails', async () => {
+      invitationsService.acceptInvitationInTransaction.mockRejectedValue(
+        new Error('Invitation is invalid or expired'),
+      );
+
+      await expect(service.registerWithInvitation(input)).rejects.toThrow(
+        'Invitation is invalid or expired',
+      );
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(usersService.create).toHaveBeenCalledTimes(1);
+
+      expect(
+        invitationsService.acceptInvitationInTransaction,
+      ).toHaveBeenCalledWith(
+        tx,
+        user.id,
+        'ahmad@example.com',
+        input.invitationToken,
+      );
+    });
+
+    it('should convert a Prisma P2002 error into a conflict exception', async () => {
+      const prismaError = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed',
+        {
+          code: 'P2002',
+          clientVersion: 'test',
+          meta: { target: ['email'] },
+        },
+      );
+
+      prisma.$transaction.mockRejectedValue(prismaError);
+
+      await expect(service.registerWithInvitation(input)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('should propagate unexpected transaction errors', async () => {
+      prisma.$transaction.mockRejectedValue(
+        new Error('Database unavailable'),
+      );
+
+      await expect(service.registerWithInvitation(input)).rejects.toThrow(
         'Database unavailable',
       );
     });

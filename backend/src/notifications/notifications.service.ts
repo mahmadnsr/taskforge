@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { NotificationType, Prisma } from '@prisma/client';
+import { NotificationType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MarkAllNotificationsReadInput } from './dto/mark-all-notifications-read.input.js';
 import { MarkNotificationReadInput } from './dto/mark-notification-read.input.js';
@@ -70,7 +70,7 @@ export class NotificationsService {
       where: {
         userId_organizationId: { userId, organizationId },
       },
-      select: { userId: true },
+      select: { role: true },
     });
 
     if (!membership) {
@@ -78,6 +78,38 @@ export class NotificationsService {
         'You are not a member of this organization',
       );
     }
+    return membership.role;
+  }
+
+  private visibleTask(userId: string, organizationId: string, role: Role) {
+    return role === Role.ADMIN
+      ? { deletedAt: null }
+      : { deletedAt: null, project: { members: { some: { userId, organizationId } } } };
+  }
+
+  // The database is the source of truth for streams. This also works when the
+  // writer and the connected client are served by different API instances.
+  async streamChanges(userId: string, after: { createdAt: Date; id: string }) {
+    const memberships = await this.prisma.organizationMember.findMany({
+      where: { userId }, select: { organizationId: true, role: true },
+    });
+    if (memberships.length === 0) return [];
+    return this.prisma.notification.findMany({
+      where: {
+        recipientId: userId,
+        OR: memberships.map(({ organizationId, role }) => ({
+          organizationId,
+          task: this.visibleTask(userId, organizationId, role),
+        })),
+        AND: [{ OR: [
+          { createdAt: { gt: after.createdAt } },
+          { createdAt: after.createdAt, id: { gt: after.id } },
+        ] }],
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: 50,
+      select: { id: true, createdAt: true },
+    });
   }
 
   async findMyNotifications(
@@ -86,7 +118,7 @@ export class NotificationsService {
   ) {
     const { organizationId, first, after } = input;
 
-    await this.assertOrganizationMembership(userId, organizationId);
+    const role = await this.assertOrganizationMembership(userId, organizationId);
 
     const cursor = after ? decodeNotificationCursor(after) : null;
 
@@ -94,6 +126,7 @@ export class NotificationsService {
       where: {
         recipientId: userId,
         organizationId,
+        task: this.visibleTask(userId, organizationId, role),
         ...(cursor && {
           OR: [
             { createdAt: { lt: new Date(cursor.createdAt) } },
@@ -126,12 +159,13 @@ export class NotificationsService {
   }
 
   async unreadCount(userId: string, organizationId: string) {
-    await this.assertOrganizationMembership(userId, organizationId);
+    const role = await this.assertOrganizationMembership(userId, organizationId);
 
     return this.prisma.notification.count({
       where: {
         recipientId: userId,
         organizationId,
+        task: this.visibleTask(userId, organizationId, role),
         readAt: null,
       },
     });
@@ -143,13 +177,14 @@ export class NotificationsService {
   ) {
     const { organizationId, notificationId } = input;
 
-    await this.assertOrganizationMembership(userId, organizationId);
+    const role = await this.assertOrganizationMembership(userId, organizationId);
 
     const result = await this.prisma.notification.updateMany({
       where: {
         id: notificationId,
         recipientId: userId,
         organizationId,
+        task: this.visibleTask(userId, organizationId, role),
         readAt: null,
       },
       data: {
@@ -163,6 +198,7 @@ export class NotificationsService {
           id: notificationId,
           recipientId: userId,
           organizationId,
+          task: this.visibleTask(userId, organizationId, role),
         },
         select: { id: true },
       });
@@ -177,6 +213,7 @@ export class NotificationsService {
         id: notificationId,
         recipientId: userId,
         organizationId,
+        task: this.visibleTask(userId, organizationId, role),
       },
     });
   }
@@ -187,12 +224,13 @@ export class NotificationsService {
   ) {
     const { organizationId } = input;
 
-    await this.assertOrganizationMembership(userId, organizationId);
+    const role = await this.assertOrganizationMembership(userId, organizationId);
 
     const result = await this.prisma.notification.updateMany({
       where: {
         recipientId: userId,
         organizationId,
+        task: this.visibleTask(userId, organizationId, role),
         readAt: null,
       },
       data: {

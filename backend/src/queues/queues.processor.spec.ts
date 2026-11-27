@@ -21,6 +21,7 @@ const createReminder = (overrides: Record<string, unknown> = {}) => {
       dueDate,
       assigneeId: 'user-1',
       status: TaskStatus.TODO,
+      deletedAt: null,
     },
     recipient: {
       email: 'user@example.com',
@@ -101,7 +102,7 @@ describe('QueuesProcessor', () => {
   };
 
   it('processes test jobs', async () => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const log = vi.spyOn(processor['logger'], 'log').mockImplementation(() => {});
 
     await processor.process({
       id: 'test-1',
@@ -109,16 +110,18 @@ describe('QueuesProcessor', () => {
       data: { message: 'hello' },
     } as Job);
 
-    expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('message=hello'),
-    );
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'queue.test_job.processed',
+      job_name: 'test-job',
+    }));
+    expect(JSON.stringify(log.mock.calls)).not.toContain('hello');
     expect(emailService.send).not.toHaveBeenCalled();
 
     log.mockRestore();
   });
 
   it('processes task events', async () => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const log = vi.spyOn(processor['logger'], 'log').mockImplementation(() => {});
 
     await processor.process({
       id: 'event-1',
@@ -133,16 +136,44 @@ describe('QueuesProcessor', () => {
       },
     } as Job);
 
-    expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('event=TASK_CREATED'),
-    );
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'queue.task_event.processed',
+      job_name: 'task-event',
+      event_type: 'TASK_CREATED',
+    }));
+    expect(JSON.stringify(log.mock.calls)).not.toContain('org-1');
+    expect(JSON.stringify(log.mock.calls)).not.toContain('task-1');
     expect(emailService.send).not.toHaveBeenCalled();
 
     log.mockRestore();
   });
 
+  it('logs bounded job lifecycle metadata without job payloads', () => {
+    const log = vi.spyOn(processor['logger'], 'log').mockImplementation(() => {});
+    const error = vi.spyOn(processor['logger'], 'error').mockImplementation(() => {});
+    const job = {
+      name: 'task-event',
+      attemptsMade: 1,
+      opts: { attempts: 5 },
+      processedOn: 100,
+      finishedOn: 125,
+      data: { token: 'must-not-appear', organizationId: 'org-secret' },
+    } as unknown as Job;
+
+    processor.onJobActive(job);
+    processor.onJobCompleted(job);
+    processor.onJobFailed(job, new Error('Redis unavailable'));
+
+    const records = JSON.stringify([log.mock.calls, error.mock.calls]);
+    expect(records).toContain('queue.job.started');
+    expect(records).toContain('queue.job.completed');
+    expect(records).toContain('queue.job.failed');
+    expect(records).not.toContain('must-not-appear');
+    expect(records).not.toContain('org-secret');
+  });
+
   it('sends normal email jobs through EmailService', async () => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const log = vi.spyOn(processor['logger'], 'log').mockImplementation(() => {});
 
     await processor.process({
       id: 'email-1',
@@ -162,7 +193,7 @@ describe('QueuesProcessor', () => {
     });
 
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('Email sent job=email-1'),
+      'Email sent successfully. job=email-1',
     );
 
     expect(prisma.taskReminder.updateMany).not.toHaveBeenCalled();
@@ -190,7 +221,7 @@ describe('QueuesProcessor', () => {
   });
 
   it('sends a reminder after successfully claiming it', async () => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const log = vi.spyOn(processor['logger'], 'log').mockImplementation(() => {});
 
     mockReminderFlow();
 
@@ -253,7 +284,7 @@ describe('QueuesProcessor', () => {
     );
 
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('Email sent job=email-reminder-1'),
+      'Email sent successfully. job=email-reminder-1',
     );
 
     log.mockRestore();
@@ -361,6 +392,33 @@ describe('QueuesProcessor', () => {
     expect(emailService.send).not.toHaveBeenCalled();
     expect(prisma.taskReminder.updateMany).toHaveBeenCalledTimes(1);
     expect(prisma.taskReminder.findUnique).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips a reminder for a soft-deleted task', async () => {
+    mockReminderFlow({
+      task: {
+        organizationId: 'org-1',
+        dueDate: new Date('2026-10-27T12:00:00.000Z'),
+        assigneeId: 'user-1',
+        status: TaskStatus.TODO,
+        deletedAt: new Date('2026-10-27T11:00:00.000Z'),
+      },
+    });
+
+    await processor.process({
+      id: 'email-reminder-deleted',
+      name: 'send-email',
+      data: {
+        to: 'user@example.com',
+        subject: 'Task reminder',
+        text: 'Your task is due soon',
+        idempotencyKey: 'deadline-reminder-1',
+        reminderId: 'reminder-1',
+      },
+    } as Job);
+
+    expect(emailService.send).not.toHaveBeenCalled();
+    expect(prisma.taskReminder.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: TaskReminderStatus.SKIPPED }) }));
   });
 
   it('sends only one reminder email when two processing attempts overlap', async () => {

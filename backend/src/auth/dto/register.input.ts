@@ -11,20 +11,20 @@ export class RegisterInput {
   @Field()
   @IsNotEmpty()
   @MaxLength(100)
-  name: string;
+  name!: string;
 
   @Field()
   @IsEmail()
   @MaxLength(254)
-  email: string;
+  email!: string;
 
   @Field()
   @MinLength(8)
   @MaxLength(72)
-  password: string;
+  password!: string;
 
   @Field()
   @IsNotEmpty()
   @MaxLength(100)
-  organizationName: string;
+  organizationName!: string;
 }

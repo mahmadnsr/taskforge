@@ -106,4 +106,23 @@ describe('GqlThrottlerGuard integration', () => {
     expect(differentClient.body.data?.ping).toBe('pong');
     expect(differentClient.body.errors).toBeUndefined();
   });
+
+  it('rejects GraphQL batched requests (array body)', async () => {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': '198.51.100.10',
+      },
+      body: JSON.stringify([
+        { query: '{ ping }' },
+        { query: '{ ping }' },
+      ]),
+    });
+
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.errors?.[0]?.message).toBe('Operation batching disabled.');
+    expect(body.errors?.[0]?.extensions?.code).toBe('BAD_REQUEST');
+  });
 });

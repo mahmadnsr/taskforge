@@ -226,7 +226,7 @@ describe('TaskCommentsService', () => {
       });
 
       expect(prisma.task.findFirst).toHaveBeenCalledWith({
-        where: { id: TASK, organizationId: OTHER_ORG },
+        where: { id: TASK, organizationId: OTHER_ORG, deletedAt: null },
         select: {
           id: true,
           organizationId: true,
@@ -644,6 +644,7 @@ describe('TaskCommentsService', () => {
             id: 'comment-1',
             organizationId: ORG,
             taskId: TASK,
+            task: { deletedAt: null },
           },
         }),
       );

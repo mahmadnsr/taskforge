@@ -1,0 +1,100 @@
+name: taskforge_interview_stage
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    env_file: ./.state/postgres.env
+    volumes:
+      - stage_postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskforge_stage -d taskforge_stage"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    env_file: ./.state/redis.env
+    command: ["sh", "-ec", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    volumes:
+      - stage_redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping | grep -qx PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mailpit:
+    image: axllent/mailpit:v1.33.1
+    env_file: ./.state/mailpit.env
+    ports:
+      - "127.0.0.1:8025:8025"
+    volumes:
+      - stage_mailpit:/data
+
+  tools:
+    profiles: [tools]
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: builder
+    working_dir: /app
+    env_file: ./.state/app.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    env_file: ./.state/app.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3300:3000"
+
+  worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    env_file: ./.state/app.env
+    command: ["node", "dist/worker.js"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://backend:3000/health/worker | grep -q '\"status\":\"active\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_GRAPHQL_URL: http://127.0.0.1:3300/graphql
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:8088:80"
+
+volumes:
+  stage_postgres:
+  stage_redis:
+  stage_mailpit:

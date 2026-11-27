@@ -178,6 +178,9 @@ describe('DTO fields and rules vs. the validation feedback allowlists', () => {
     Matches: 'matches',
     IsEnum: 'isEnum',
     IsInt: 'isInt',
+    IsBoolean: 'isBoolean',
+    IsArray: 'isArray',
+    ArrayMaxSize: 'arrayMaxSize',
     Min: 'min',
     Max: 'max',
     IsOptional: null, // reports no constraint
@@ -225,7 +228,7 @@ describe('DTO fields and rules vs. the validation feedback allowlists', () => {
 
     for (const { text } of dtoTexts) {
       for (const m of text.matchAll(
-        /@(Is\w+|Min\w*|Max\w*|Length|Matches)\s*\(/g,
+        /@(Is\w+|Min\w*|Max\w*|Array\w*|Length|Matches)\s*\(/g,
       )) {
         const constraint = DECORATOR_TO_CONSTRAINT[m[1]];
         if (constraint) used.add(constraint);
@@ -239,8 +242,8 @@ describe('DTO fields and rules vs. the validation feedback allowlists', () => {
     const props = new Set<string>();
 
     for (const { text } of dtoTexts) {
-      // class members declared at indent 2: `name!: string;` / `name?: string;`
-      for (const m of text.matchAll(/^ {2}([a-z_]\w*)[!?]?\s*(?::|=)/gm)) {
+      // Include both multiline and inline decorator/property declarations.
+      for (const m of text.matchAll(/\b([a-z_]\w*)[!?]\s*:\s*[^;]+;/g)) {
         props.add(m[1]);
       }
     }

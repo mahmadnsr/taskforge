@@ -1,5 +1,6 @@
 import { UseGuards } from '@nestjs/common';
 import { Args, Mutation, Resolver } from '@nestjs/graphql';
+import { Throttle } from '@nestjs/throttler';
 import { InvitationsService } from './invitations.service.js';
 import { OrganizationInvitation } from './entities/organization-invitation.entity.js';
 import { Organization } from './entities/organization.entity.js';
@@ -12,6 +13,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 export class InvitationsResolver {
   constructor(private invitationsService: InvitationsService) {}
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Mutation(() => OrganizationInvitation)
   @UseGuards(JwtAuthGuard)
   inviteMember(
@@ -21,6 +23,7 @@ export class InvitationsResolver {
     return this.invitationsService.inviteMember(user.id, input);
   }
 
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Mutation(() => Organization)
   @UseGuards(JwtAuthGuard)
   acceptInvitation(

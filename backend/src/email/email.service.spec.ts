@@ -63,6 +63,31 @@ describe('EmailService', () => {
     });
   });
 
+  it('uses Mailpit SMTP on the internal staging hostname', async () => {
+    const values: Record<string, string> = {
+      SMTP_HOST: 'mailpit',
+      SMTP_PORT: '1025',
+      SMTP_USER: 'stage_mailer',
+      SMTP_PASS: 'local-test-password',
+      SMTP_FROM: 'TaskForge Staging <noreply@example.test>',
+    };
+    config.get.mockImplementation((key: string) => values[key]);
+
+    await service.send({
+      to: 'employee@example.test',
+      subject: 'Invitation',
+      text: 'Join TaskForge',
+    });
+
+    expect(nodemailer.createTransport).toHaveBeenCalledWith({
+      host: 'mailpit',
+      port: 1025,
+      secure: false,
+      auth: { user: 'stage_mailer', pass: 'local-test-password' },
+    });
+    expect(sendMail).toHaveBeenCalledOnce();
+  });
+
   it('reuses the SMTP transporter for subsequent emails', async () => {
     await service.send({
       to: 'first@example.com',

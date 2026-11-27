@@ -3,7 +3,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { NotificationType } from '@prisma/client';
+import { NotificationType, Role } from '@prisma/client';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { NotificationsService } from './notifications.service.js';
 import { encodeNotificationCursor } from './notifications-cursor.js';
@@ -16,7 +16,8 @@ const TASK = 'task-1';
 function setup() {
   const prisma = {
     organizationMember: {
-      findUnique: vi.fn().mockResolvedValue({ userId: USER }),
+      findUnique: vi.fn().mockResolvedValue({ role: Role.ADMIN }),
+      findMany: vi.fn().mockResolvedValue([{ organizationId: ORG, role: Role.ADMIN }]),
     },
     notification: {
       findMany: vi.fn().mockResolvedValue([]),
@@ -56,6 +57,41 @@ function setup() {
 }
 
 describe('NotificationsService', () => {
+  describe('streamChanges', () => {
+    it('reads only the recipient and currently accessible organizations and tasks', async () => {
+      const { service, prisma } = setup();
+      const after = { createdAt: new Date('2026-10-20T10:00:00.000Z'), id: 'cursor' };
+      await service.streamChanges(USER, after);
+      expect(prisma.organizationMember.findMany).toHaveBeenCalledWith({
+        where: { userId: USER }, select: { organizationId: true, role: true },
+      });
+      expect(prisma.notification.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          recipientId: USER,
+          OR: [{ organizationId: ORG, task: { deletedAt: null } }],
+        }),
+        select: { id: true, createdAt: true }, take: 50,
+      }));
+    });
+
+    it('does not query notifications without current organization membership', async () => {
+      const { service, prisma } = setup();
+      prisma.organizationMember.findMany.mockResolvedValue([]);
+      expect(await service.streamChanges(USER, { createdAt: new Date(), id: '' })).toEqual([]);
+      expect(prisma.notification.findMany).not.toHaveBeenCalled();
+    });
+
+    it('applies project membership for employee streams', async () => {
+      const { service, prisma } = setup();
+      prisma.organizationMember.findMany.mockResolvedValue([{ organizationId: ORG, role: Role.EMPLOYEE }]);
+      await service.streamChanges(USER, { createdAt: new Date(), id: '' });
+      expect(prisma.notification.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ OR: [{ organizationId: ORG,
+          task: { deletedAt: null, project: { members: { some: { userId: USER, organizationId: ORG } } } },
+        }] }),
+      }));
+    });
+  });
   describe('createForRecipient', () => {
     it('creates a notification when the recipient belongs to the organization', async () => {
       const { service, tx } = setup();
@@ -108,6 +144,19 @@ describe('NotificationsService', () => {
   });
 
   describe('findMyNotifications', () => {
+    it('limits employees to active tasks in their projects', async () => {
+      const { service, prisma } = setup();
+      prisma.organizationMember.findUnique.mockResolvedValue({ role: Role.EMPLOYEE });
+
+      await service.findMyNotifications(USER, { organizationId: ORG, first: 10 });
+
+      expect(prisma.notification.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          task: { deletedAt: null, project: { members: { some: { userId: USER, organizationId: ORG } } } },
+        }),
+      }));
+    });
+
     it('checks membership and filters notifications by recipient and organization', async () => {
       const { service, prisma } = setup();
 
@@ -123,13 +172,14 @@ describe('NotificationsService', () => {
             organizationId: ORG,
           },
         },
-        select: { userId: true },
+        select: { role: true },
       });
 
       expect(prisma.notification.findMany).toHaveBeenCalledWith({
         where: {
           recipientId: USER,
           organizationId: ORG,
+          task: { deletedAt: null },
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: 11,
@@ -167,6 +217,7 @@ describe('NotificationsService', () => {
         where: {
           recipientId: USER,
           organizationId: ORG,
+          task: { deletedAt: null },
           OR: [
             { createdAt: { lt: new Date('2026-10-20T10:00:00.000Z') } },
             {
@@ -237,6 +288,7 @@ describe('NotificationsService', () => {
         where: {
           recipientId: USER,
           organizationId: ORG,
+          task: { deletedAt: null },
           readAt: null,
         },
       });
@@ -268,6 +320,7 @@ describe('NotificationsService', () => {
           id: 'notification-1',
           recipientId: USER,
           organizationId: ORG,
+          task: { deletedAt: null },
           readAt: null,
         },
         data: {
@@ -293,6 +346,7 @@ describe('NotificationsService', () => {
           id: 'notification-1',
           recipientId: USER,
           organizationId: ORG,
+          task: { deletedAt: null },
         },
         select: { id: true },
       });
@@ -344,6 +398,7 @@ describe('NotificationsService', () => {
         where: {
           recipientId: USER,
           organizationId: ORG,
+          task: { deletedAt: null },
           readAt: null,
         },
         data: {

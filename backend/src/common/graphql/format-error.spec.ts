@@ -13,6 +13,9 @@ import {
 } from '@nestjs/common';
 import type { ValidationError } from '@nestjs/common';
 import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsNotEmpty,
@@ -59,19 +62,27 @@ const STATUS_OF_PUBLIC_MESSAGE: Record<string, number> = {
   'Invalid or expired refresh token': 401,
   'Missing access token': 401,
   'Invalid or expired access token': 401,
+  'Notification stream limit reached': 409,
   Unauthorized: 401,
   'Authentication required': 403,
   'Missing x-organization-id header': 403,
   'You are not a member of this organization': 403,
   'Insufficient role': 403,
   'Member not found': 404,
-  'Managers can only invite employees': 403,
+  'Only organization admins can invite members': 403,
+  'Organization not found': 400,
+  'Only organization admins can manage projects': 403,
+  'Managers can add or remove only employees from project teams': 403,
+  'Reassign tasks before removing this project member': 409,
+  'You must be a project member to access this project': 403,
+  'Only admins and managers can delete tasks': 403,
   'This user is already a member': 409,
   'An active invitation already exists for this email': 409,
   'You are already a member of this organization': 409,
   'Invalid or expired invitation': 400,
   'An organization must have at least one admin': 400,
   'Concurrent update detected, please retry': 409,
+  'Cannot remove this member because they created tasks in this organization. Reassign or archive those tasks first.': 400,
   'Project not found': 404,
   'Name cannot be empty': 400,
   'Nothing to update': 400,
@@ -86,6 +97,8 @@ const STATUS_OF_PUBLIC_MESSAGE: Record<string, number> = {
 
   // Day 4 — Task assignment
   'Only admins and managers can assign tasks': 403,
+  'Managers can assign tasks only to project employees': 403,
+  'Only admins and managers can create tasks': 403,
   'Provide assigneeId or null to unassign the task': 400,
 
   'Provide at least one field to update': 400,
@@ -94,10 +107,36 @@ const STATUS_OF_PUBLIC_MESSAGE: Record<string, number> = {
   'You must be a project member to view this task': 403,
   'You must be a project member to view project tasks': 403,
   'Invalid task status transition': 400,
+  'Only admins and managers can review submitted work': 403,
+  'Task status changed; refresh and try again': 409,
+  'Complete blocking tasks before starting work': 409,
+  'A task cannot depend on itself': 400,
+  'Task dependency would create a cycle': 400,
+  'Task dependency already exists': 409,
+  'Task dependency not found': 404,
+  'Remove task dependencies before deleting this task': 409,
+  'Only admins and managers can manage task dependencies': 403,
   'Limit must be an integer between 1 and 100': 400,
   'Offset must be a non-negative integer': 400,
   'Invalid task sort field': 400,
   'Invalid sort direction': 400,
+  'Invalid activity page size': 400,
+  'Invalid activity cursor': 400,
+  'Insufficient permission to modify this checklist': 403,
+  'Checklist content must be 1 to 500 characters': 400,
+  'Invalid checklist position': 400,
+  'Checklist limit reached': 400,
+  'Checklist item not found': 404,
+  'Invalid completion value': 400,
+  'Invalid checklist order': 400,
+  'Checklist order must contain every item exactly once': 400,
+  'Parent task not found': 404,
+  'Subtasks cannot have subtasks': 400,
+  'Task is not a subtask': 400,
+  'Subtask has child tasks': 400,
+  'You must be a project member to view analytics': 403,
+  'Employees can view only their own analytics': 403,
+  'Employee not found': 404,
 };
 
 const CODE_OF_STATUS: Record<number, string> = {
@@ -893,6 +932,11 @@ describe('custom messages through the real SafeValidationPipe (production)', () 
     @Matches(/^[a-f0-9]{64}$/) refreshToken!: string;
   }
 
+  class ChecklistRulesInput {
+    @IsBoolean() completed!: boolean;
+    @IsArray() @ArrayMaxSize(1) itemIds!: string[];
+  }
+
   async function run(
     metatype: new () => object,
     value: object,
@@ -1010,6 +1054,15 @@ describe('custom messages through the real SafeValidationPipe (production)', () 
     });
   });
 
+  it('safely describes boolean, array, and array-size failures', async () => {
+    const invalid = await run(ChecklistRulesInput, { completed: 'yes', itemIds: 'invalid' });
+    expect(invalid.extensions?.validationErrors).toEqual(expect.arrayContaining([
+      'completed must be a boolean', 'itemIds must be an array',
+    ]));
+    const oversized = await run(ChecklistRulesInput, { completed: true, itemIds: ['a', 'b'] });
+    expect(oversized.extensions?.validationErrors).toContain('itemIds has too many items');
+  });
+
   it('every approved constraint is exercised by the test above (no untested constraint)', () => {
     const exercised = new Set([
       'isNotEmpty',
@@ -1025,6 +1078,9 @@ describe('custom messages through the real SafeValidationPipe (production)', () 
       'max',
       'isLength',
       'matches',
+      'isBoolean',
+      'isArray',
+      'arrayMaxSize',
     ]);
 
     expect([...CONSTRAINT_MESSAGES.keys()].sort()).toEqual(

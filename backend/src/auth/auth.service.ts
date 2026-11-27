@@ -4,17 +4,17 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { hashPassword, verifyPassword, verifyDummyPassword } from './password.util.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { UsersService } from '../users/users.service.js';
 import { OrganizationsService } from '../organizations/organizations.service.js';
+import { InvitationsService } from '../organizations/invitations.service.js';
 import { RegisterInput } from './dto/register.input.js';
+import { RegisterWithInvitationInput } from './dto/register-with-invitation.input.js';
 import { LoginInput } from './dto/login.input.js';
 import { TokenService } from './token.service.js';
 
 // User na mile tab bhi bcrypt chalane ke liye (timing attack se bachav)
-const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 12);
-
 @Injectable()
 export class AuthService {
   constructor(
@@ -22,29 +22,31 @@ export class AuthService {
     private usersService: UsersService,
     private organizationsService: OrganizationsService,
     private tokenService: TokenService,
+    private invitationsService: InvitationsService,
   ) {}
 
   async register(input: RegisterInput) {
-    const email = input.email.toLowerCase().trim();
+    const email = input.email.trim().toLowerCase();
 
     const existing = await this.usersService.findByEmail(email);
+
     if (existing) {
       throw new ConflictException('Email already registered');
     }
 
-    const passwordHash = await bcrypt.hash(input.password, 12);
+    const passwordHash = await hashPassword(input.password);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
         const user = await this.usersService.create(tx, {
-          name: input.name,
+          name: input.name.trim(),
           email,
           passwordHash,
         });
 
         await this.organizationsService.createWithAdmin(
           tx,
-          input.organizationName,
+          input.organizationName.trim(),
           user.id,
         );
 
@@ -62,14 +64,53 @@ export class AuthService {
     }
   }
 
+  async registerWithInvitation(input: RegisterWithInvitationInput) {
+    const email = input.email.trim().toLowerCase();
+
+    const existing = await this.usersService.findByEmail(email);
+
+    if (existing) {
+      throw new ConflictException('Email already registered');
+    }
+
+    const passwordHash = await hashPassword(input.password);
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const user = await this.usersService.create(tx, {
+          name: input.name.trim(),
+          email,
+          passwordHash,
+        });
+
+        await this.invitationsService.acceptInvitationInTransaction(
+          tx,
+          user.id,
+          email,
+          input.invitationToken,
+        );
+
+        return user;
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException('Email already registered');
+      }
+
+      throw e;
+    }
+  }
+
   async login(input: LoginInput) {
-    const email = input.email.toLowerCase().trim();
+    const email = input.email.trim().toLowerCase();
     const user = await this.usersService.findByEmail(email);
 
-    const valid = await bcrypt.compare(
-      input.password,
-      user?.passwordHash ?? DUMMY_HASH,
-    );
+    const valid = user
+      ? await verifyPassword(input.password, user.passwordHash)
+      : (await verifyDummyPassword(input.password), false);
 
     if (!user || !valid) {
       throw new UnauthorizedException('Invalid email or password');

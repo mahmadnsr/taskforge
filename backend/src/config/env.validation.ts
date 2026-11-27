@@ -9,6 +9,7 @@ const NODE_ENVS = ['development', 'production', 'test'];
 export function validateEnv(config: Record<string, unknown>) {
   const errors: string[] = [];
 
+  // Required environment variables
   for (const key of REQUIRED) {
     const value = config[key];
 
@@ -17,12 +18,38 @@ export function validateEnv(config: Record<string, unknown>) {
     }
   }
 
+  // JWT access-token secret
   const secret = config.JWT_ACCESS_SECRET;
 
   if (typeof secret === 'string' && secret.length < 32) {
     errors.push('JWT_ACCESS_SECRET must be at least 32 characters');
   }
 
+  // Metrics endpoint bearer token. Production must explicitly configure a
+  // separate high-entropy token; outside production the endpoint remains
+  // inaccessible when this value is omitted.
+  const metricsToken = config.METRICS_ACCESS_TOKEN;
+
+  if (
+    config.NODE_ENV === 'production' &&
+    (typeof metricsToken !== 'string' || metricsToken.length < 32)
+  ) {
+    errors.push('METRICS_ACCESS_TOKEN is required in production and must be at least 32 characters');
+  } else if (
+    metricsToken !== undefined &&
+    (
+      typeof metricsToken !== 'string' ||
+      metricsToken.length < 32 ||
+      Array.from(metricsToken).some((character) => {
+        const code = character.charCodeAt(0);
+        return code <= 32 || code === 127;
+      })
+    )
+  ) {
+    errors.push('METRICS_ACCESS_TOKEN must be at least 32 non-whitespace characters');
+  }
+
+  // Application port
   const port = config.PORT;
 
   if (
@@ -38,6 +65,7 @@ export function validateEnv(config: Record<string, unknown>) {
     errors.push('PORT must be an integer between 1 and 65535');
   }
 
+  // CORS origins
   const corsOrigins = config.CORS_ORIGINS;
 
   if (
@@ -49,7 +77,9 @@ export function validateEnv(config: Record<string, unknown>) {
 
   if (corsOrigins !== undefined) {
     if (typeof corsOrigins !== 'string') {
-      errors.push('CORS_ORIGINS must be a comma-separated list of HTTP/HTTPS origins');
+      errors.push(
+        'CORS_ORIGINS must be a comma-separated list of HTTP/HTTPS origins',
+      );
     } else {
       const origins = corsOrigins.split(',').map((origin) => origin.trim());
 
@@ -61,6 +91,7 @@ export function validateEnv(config: Record<string, unknown>) {
             (() => {
               try {
                 const url = new URL(origin);
+
                 return (
                   !['http:', 'https:'].includes(url.protocol) ||
                   url.origin !== origin ||
@@ -73,11 +104,45 @@ export function validateEnv(config: Record<string, unknown>) {
             })(),
         )
       ) {
-        errors.push('CORS_ORIGINS must contain only valid HTTP/HTTPS origins without paths or wildcards');
+        errors.push(
+          'CORS_ORIGINS must contain only valid HTTP/HTTPS origins without paths or wildcards',
+        );
       }
     }
   }
 
+  // Frontend base URL for invitation links
+  const frontendUrl = config.FRONTEND_URL;
+
+  if (frontendUrl !== undefined) {
+    if (
+      typeof frontendUrl !== 'string' ||
+      frontendUrl.trim() === ''
+    ) {
+      errors.push('FRONTEND_URL must be a valid HTTP/HTTPS base URL');
+    } else {
+      try {
+        const url = new URL(frontendUrl);
+
+        if (
+          !['http:', 'https:'].includes(url.protocol) ||
+          url.origin !== frontendUrl ||
+          url.username !== '' ||
+          url.password !== '' ||
+          (config.NODE_ENV === 'production' &&
+            url.protocol !== 'https:')
+        ) {
+          errors.push(
+            'FRONTEND_URL must be a valid base URL without paths; production requires HTTPS',
+          );
+        }
+      } catch {
+        errors.push('FRONTEND_URL must be a valid HTTP/HTTPS base URL');
+      }
+    }
+  }
+
+  // Redis port
   const redisPort = config.REDIS_PORT;
 
   if (
@@ -93,14 +158,23 @@ export function validateEnv(config: Record<string, unknown>) {
     errors.push('REDIS_PORT must be an integer between 1 and 65535');
   }
 
-  for (const key of ['REDIS_HOST', 'REDIS_USERNAME', 'REDIS_PASSWORD'] as const) {
+  // Redis connection settings
+  for (const key of [
+    'REDIS_HOST',
+    'REDIS_USERNAME',
+    'REDIS_PASSWORD',
+  ] as const) {
     const value = config[key];
 
-    if (value !== undefined && (typeof value !== 'string' || value.trim() === '')) {
+    if (
+      value !== undefined &&
+      (typeof value !== 'string' || value.trim() === '')
+    ) {
       errors.push(`${key} must be a non-empty string when provided`);
     }
   }
 
+  // Redis TLS
   if (
     config.REDIS_TLS !== undefined &&
     config.REDIS_TLS !== 'true' &&
@@ -109,6 +183,37 @@ export function validateEnv(config: Record<string, unknown>) {
     errors.push('REDIS_TLS must be either true or false');
   }
 
+  // Trusted proxy — only set when running behind a trusted reverse proxy.
+  // Accepts: loopback, 127.0.0.1, ::ffff:127.0.0.1, or a comma-separated
+  // list of IP addresses/CIDR ranges. Never wildcard ('*') or 'true'
+  // (Express interprets 'true' as trusting every proxy hop).
+  const trustProxy = config.TRUST_PROXY;
+
+  if (trustProxy !== undefined && typeof trustProxy !== 'string') {
+    errors.push('TRUST_PROXY must be a string when provided');
+  } else if (typeof trustProxy === 'string') {
+    const raw = trustProxy.trim();
+
+    if (raw === '') {
+      errors.push('TRUST_PROXY must not be empty when provided');
+    } else if (
+      raw !== 'loopback' &&
+      raw !== '127.0.0.1' &&
+      raw !== '::ffff:127.0.0.1' &&
+      !raw.split(',').every((part) => {
+        const p = part.trim();
+        if (p === '' || p === '*') return false;
+        // Allow IP addresses and CIDR ranges (simple validation).
+        return /^[\d.a-fA-F:./]+$/.test(p);
+      })
+    ) {
+      errors.push(
+        'TRUST_PROXY must be loopback, 127.0.0.1, ::ffff:127.0.0.1, or a comma-separated list of IP addresses/CIDR ranges',
+      );
+    }
+  }
+
+  // Node environment
   const nodeEnv = config.NODE_ENV;
 
   if (
@@ -118,6 +223,7 @@ export function validateEnv(config: Record<string, unknown>) {
     errors.push(`NODE_ENV must be one of: ${NODE_ENVS.join(', ')}`);
   }
 
+  // Refresh-token TTL
   const refreshTokenTtl = config.REFRESH_TOKEN_TTL_DAYS;
 
   if (refreshTokenTtl !== undefined) {
@@ -134,6 +240,7 @@ export function validateEnv(config: Record<string, unknown>) {
     }
   }
 
+  // JWT access-token expiry
   const accessTokenExpiresIn = config.JWT_ACCESS_EXPIRES_IN;
 
   if (accessTokenExpiresIn !== undefined) {
@@ -150,6 +257,7 @@ export function validateEnv(config: Record<string, unknown>) {
     }
   }
 
+  // Report all validation errors together
   if (errors.length > 0) {
     throw new Error(
       `Invalid environment configuration:\n- ${errors.join('\n- ')}`,

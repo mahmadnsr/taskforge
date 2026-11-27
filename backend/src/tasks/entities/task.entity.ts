@@ -15,6 +15,9 @@ export class Task {
   @Field(() => ID)
   projectId!: string;
 
+  @Field(() => ID, { nullable: true })
+  parentId?: string | null;
+
   @Field()
   title!: string;
 

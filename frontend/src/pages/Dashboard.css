@@ -1,0 +1,335 @@
+.dashboard-page {
+  --dashboard-card-radius: 14px;
+  width: min(100%, 1440px);
+  padding-bottom: 56px;
+}
+
+.dashboard-page .dashboard-hero,
+.dashboard-page .dashboard-metric-surface,
+.dashboard-page .dashboard-progress-card,
+.dashboard-page .dashboard-overdue-card,
+.dashboard-page .dashboard-empty-progress,
+.dashboard-page .dashboard-project-surface,
+.dashboard-page .analytics-panel {
+  border: 1px solid transparent;
+  border-radius: var(--dashboard-card-radius);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow);
+}
+
+.dashboard-page .dashboard-hero {
+  padding: 0;
+}
+
+.dashboard-page .dashboard-hero-inner {
+  padding: clamp(24px, 3vw, 36px);
+  background: transparent;
+  box-shadow: none;
+}
+
+.dashboard-page .dashboard-eyebrow {
+  color: var(--app-accent);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: .025em;
+  text-transform: none;
+}
+
+.dashboard-page .dashboard-greeting {
+  margin-top: 14px;
+  color: var(--app-muted);
+  font-size: 15px;
+  font-weight: 450;
+}
+
+.dashboard-page h1 {
+  margin-top: 6px;
+  max-width: 620px;
+}
+
+.dashboard-page .dashboard-description {
+  margin-top: 12px;
+  max-width: 560px;
+  color: var(--app-muted);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.65;
+}
+
+.dashboard-page .dashboard-actions {
+  align-items: stretch;
+}
+
+.dashboard-page .dashboard-actions :is(select, a) {
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.dashboard-page .dashboard-summary-meta {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-color: var(--app-border);
+  color: var(--app-muted);
+  font-size: 14px;
+  font-weight: 450;
+}
+
+.dashboard-page .dashboard-section {
+  margin-top: 44px;
+}
+
+.dashboard-page .dashboard-section > div:first-child {
+  margin-bottom: 18px;
+}
+
+.dashboard-page .dashboard-section h2 {
+  color: var(--app-text);
+  font-size: 21px;
+}
+
+.dashboard-page .dashboard-metric-grid,
+.dashboard-page .dashboard-project-grid {
+  gap: 16px;
+}
+
+.dashboard-page .dashboard-metric {
+  min-width: 0;
+  min-height: 136px;
+  padding: 0;
+  border-radius: var(--dashboard-card-radius);
+}
+
+.dashboard-page .dashboard-metric:hover {
+  background: transparent;
+}
+
+.dashboard-page .dashboard-metric-surface {
+  display: flex;
+  height: 100%;
+  min-height: 136px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 20px;
+  transition: border-color 180ms ease, background-color 180ms ease;
+}
+
+.dashboard-page .dashboard-metric:hover .dashboard-metric-surface,
+.dashboard-page .dashboard-project-card:hover .dashboard-project-surface {
+  border-color: color-mix(in srgb, var(--app-accent) 24%, var(--app-border));
+  background: var(--app-surface-hover);
+}
+
+.dashboard-page .dashboard-metric-label {
+  color: var(--app-muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.35;
+  text-transform: none;
+}
+
+.dashboard-page .dashboard-metric-icon {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--app-surface-hover);
+  box-shadow: none;
+  color: var(--app-muted);
+}
+
+.dashboard-page .dashboard-tone-accent .dashboard-metric-icon,
+.dashboard-page .dashboard-tone-success .dashboard-metric-icon {
+  border-color: color-mix(in srgb, var(--app-accent) 24%, var(--app-border));
+  background: var(--app-accent-surface);
+  color: var(--app-accent);
+}
+
+.dashboard-page .dashboard-tone-warning .dashboard-metric-icon { color: #a16207; }
+.dashboard-page .dashboard-tone-danger .dashboard-metric-icon { color: #be123c; }
+
+:root[data-theme='dark'] .dashboard-page .dashboard-tone-warning .dashboard-metric-icon { color: #fcd34d; }
+:root[data-theme='dark'] .dashboard-page .dashboard-tone-danger .dashboard-metric-icon { color: #fda4af; }
+
+.dashboard-page .dashboard-metric-value {
+  margin-top: 18px;
+  color: var(--app-text);
+  font-size: clamp(30px, 2.4vw, 36px);
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -.035em;
+}
+
+.dashboard-page .dashboard-progress-grid {
+  margin-top: 18px;
+  gap: 16px;
+}
+
+.dashboard-page .dashboard-progress-card,
+.dashboard-page .dashboard-overdue-card,
+.dashboard-page .dashboard-empty-progress {
+  padding: clamp(22px, 2.5vw, 28px);
+}
+
+.dashboard-page .dashboard-card-title,
+.dashboard-page .analytics-panel > h3 {
+  color: var(--app-text);
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -.02em;
+}
+
+.dashboard-page .dashboard-progress-value {
+  color: var(--app-text);
+  font-size: 32px;
+  font-weight: 650;
+}
+
+.dashboard-page .dashboard-progress-bar,
+.dashboard-page .analytics-progress {
+  height: 8px;
+  background: var(--app-surface-hover);
+  box-shadow: none;
+}
+
+.dashboard-page .dashboard-progress-bar > div,
+.dashboard-page .analytics-progress > div {
+  box-shadow: none;
+}
+
+.dashboard-page .dashboard-progress-legend {
+  margin-top: 22px;
+  gap: 12px 28px;
+  color: var(--app-muted);
+  font-size: 14px;
+  font-weight: 450;
+}
+
+.dashboard-page .dashboard-overdue-card {
+  background: var(--app-surface);
+}
+
+.dashboard-page .dashboard-overdue-value {
+  color: var(--app-text);
+  font-size: 36px;
+  font-weight: 650;
+}
+
+.dashboard-page .dashboard-overdue-card > p:nth-last-child(-n + 2) {
+  color: var(--app-muted);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+.dashboard-page .analytics-panel {
+  padding: clamp(22px, 2.5vw, 28px);
+}
+
+.dashboard-page .analytics-panel :is(p, li, span, time, button) {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.dashboard-page .analytics-panel h4 {
+  color: var(--app-muted);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: .02em;
+  text-transform: none;
+}
+
+.dashboard-page .analytics-stat {
+  min-height: 88px;
+  padding: 14px;
+  border-color: var(--app-border);
+  background: var(--app-surface-hover);
+}
+
+.dashboard-page .analytics-stat p:first-child {
+  color: var(--app-muted);
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.dashboard-page .analytics-stat p:last-child {
+  color: var(--app-text);
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -.03em;
+}
+
+.dashboard-page .dashboard-project-card {
+  padding: 0;
+  border-radius: var(--dashboard-card-radius);
+}
+
+.dashboard-page .dashboard-project-card:hover {
+  background: transparent;
+}
+
+.dashboard-page .dashboard-project-surface {
+  padding: 22px;
+  transition: border-color 180ms ease, background-color 180ms ease;
+}
+
+.dashboard-page .dashboard-project-surface > div.absolute {
+  display: none;
+}
+
+.dashboard-page .dashboard-project-surface h3 {
+  color: var(--app-text);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.dashboard-page .dashboard-project-surface h3 + span {
+  color: var(--app-muted);
+  font-size: 12px;
+  letter-spacing: .025em;
+}
+
+.dashboard-page .dashboard-project-surface > p {
+  min-height: 44px;
+  color: var(--app-muted);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.dashboard-page .dashboard-project-surface > div:last-child {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-color: var(--app-border);
+  color: var(--app-muted);
+  font-size: 13px;
+}
+
+.dashboard-page [role='status'],
+.dashboard-page [role='alert'] {
+  font-size: 14px;
+}
+
+@media (max-width: 760px) {
+  .dashboard-page { padding-bottom: 36px; }
+  .dashboard-page .dashboard-section { margin-top: 36px; }
+  .dashboard-page .dashboard-hero-inner { padding: 22px; }
+  .dashboard-page .dashboard-actions { margin-top: 2px; }
+  .dashboard-page .dashboard-summary-meta { gap: 10px 18px; }
+  .dashboard-page .dashboard-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .dashboard-page .dashboard-metric-surface { min-height: 138px; padding: 16px; }
+  .dashboard-page .dashboard-metric-icon { width: 34px; height: 34px; }
+  .dashboard-page .dashboard-project-grid { grid-template-columns: 1fr; }
+}
+
+@media (min-width: 1280px) {
+  .dashboard-page .dashboard-metric-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .dashboard-page .dashboard-metric-grid { grid-template-columns: 1fr; }
+  .dashboard-page .dashboard-metric-surface { min-height: 124px; }
+}

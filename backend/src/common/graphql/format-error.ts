@@ -33,6 +33,7 @@ export const PUBLIC_ERROR_MESSAGES: ReadonlySet<string> = new Set([
   'Invalid or expired refresh token',
   'Missing access token',
   'Invalid or expired access token',
+  'Notification stream limit reached',
   'Unauthorized', // Nest default for `new UnauthorizedException()`
   // roles.guard.ts
   'Authentication required',
@@ -42,31 +43,49 @@ export const PUBLIC_ERROR_MESSAGES: ReadonlySet<string> = new Set([
   'Insufficient role',
   // organizations: members and invitations
   'Member not found',
-  'Managers can only invite employees',
+  'Only organization admins can invite members',
+  'Organization not found',
   'This user is already a member',
   'An active invitation already exists for this email',
   'You are already a member of this organization',
   'Invalid or expired invitation',
   'An organization must have at least one admin',
   'Concurrent update detected, please retry',
+  'Cannot remove this member because they created tasks in this organization. Reassign or archive those tasks first.',
   // projects.service.ts
   'Project not found',
+  'Only organization admins can manage projects',
+  'Managers can add or remove only employees from project teams',
+  'Reassign tasks before removing this project member',
+  'You must be a project member to access this project',
   'Name cannot be empty',
   'Nothing to update',
   'Archived projects cannot be updated',
   'Cannot modify tasks in an archived project',
   'You must be a project member to create tasks',
+  'Only admins and managers can create tasks',
   'Assignee must be a member of this project',
+  'Managers can assign tasks only to project employees',
   'Task title cannot be empty',
   'Invalid due date',
   'Task not found',
   'Only admins and managers can update task details',
+  'Only admins and managers can delete tasks',
   'Provide at least one field to update',
   'You must be a project member to change task status',
   'You can only change the status of tasks assigned to you',
   'You must be a project member to view this task',
   'You must be a project member to view project tasks',
   'Invalid task status transition',
+  'Only admins and managers can review submitted work',
+  'Task status changed; refresh and try again',
+  'Complete blocking tasks before starting work',
+  'A task cannot depend on itself',
+  'Task dependency would create a cycle',
+  'Task dependency already exists',
+  'Task dependency not found',
+  'Remove task dependencies before deleting this task',
+  'Only admins and managers can manage task dependencies',
   'Provide assigneeId or null to unassign the task',
   'Only admins and managers can assign tasks',
   'Limit must be an integer between 1 and 100',
@@ -80,6 +99,24 @@ export const PUBLIC_ERROR_MESSAGES: ReadonlySet<string> = new Set([
   'Cannot modify comments in an archived project',
   'You can only modify your own comments',
   'Invalid comment cursor',
+  // subtasks, checklists, activity, and analytics
+  'Invalid activity page size',
+  'Invalid activity cursor',
+  'Insufficient permission to modify this checklist',
+  'Checklist content must be 1 to 500 characters',
+  'Invalid checklist position',
+  'Checklist limit reached',
+  'Checklist item not found',
+  'Invalid completion value',
+  'Invalid checklist order',
+  'Checklist order must contain every item exactly once',
+  'Parent task not found',
+  'Subtasks cannot have subtasks',
+  'Task is not a subtask',
+  'Subtask has child tasks',
+  'You must be a project member to view analytics',
+  'Employees can view only their own analytics',
+  'Employee not found',
   // notifications.service.ts and notifications-cursor.ts
   'Notification recipient must belong to the organization',
   'Notification not found',
@@ -144,8 +181,7 @@ function masked(): GraphQLFormattedError {
  * Production log line for a suppressed message: HTTP status, category and a
  * count only. Never the exception message or response body (they can contain
  * submitted values), never the path (it can contain client-chosen aliases).
- * No request/correlation ID exists in this codebase yet; add it here once a
- * request-context mechanism is introduced.
+ * The structured logger adds the current request correlation ID.
  */
 function logSuppressed(status: number, category: string, count: number): void {
   logger.warn(

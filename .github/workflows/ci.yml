@@ -1,10 +1,16 @@
-name: Backend CI
+name: CI
 
 on:
   push:
     branches:
       - main
-      - test/graphql-error-sanitizer
+      - dev
+      - develop
+      - development
+      - 'feature/**'
+      - 'fix/**'
+      - 'test/**'
+      - 'ui/**'
   pull_request:
     branches:
       - main
@@ -12,14 +18,15 @@ on:
 permissions:
   contents: read
 
-jobs:
-  validate:
-    name: Lint, Test and Build
-    runs-on: ubuntu-latest
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
-    defaults:
-      run:
-        working-directory: backend
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -37,20 +44,159 @@ jobs:
           cache: pnpm
           cache-dependency-path: backend/pnpm-lock.yaml
 
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: pnpm install --frozen-lockfile
+        working-directory: backend
 
       - name: Generate Prisma Client
         run: pnpm exec prisma generate
+        working-directory: backend
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/taskforge_ci
           DATABASE_URL_UNPOOLED: postgresql://ci:ci@localhost:5432/taskforge_ci
 
-      - name: Run lint
+      - name: Verify pnpm Prisma Client resolution
+        run: >-
+          node -e 'const fs=require("node:fs");const path=require("node:path");
+          const dir=path.dirname(require.resolve("@prisma/client"));
+          fs.cpSync(path.join(dir,".prisma/client"),path.resolve(dir,"../../.prisma/client"),{recursive:true,force:true});
+          const {PrismaClient}=require("@prisma/client");const client=new PrismaClient();
+          if(!client.taskDependency||!client.taskChecklistItem||!client.taskActivity)throw new Error("Generated Prisma Client is stale")'
+        working-directory: backend
+
+      - name: Run backend lint
         run: pnpm lint
+        working-directory: backend
 
-      - name: Run tests
-        run: pnpm test
+      - name: Run backend unit and self-contained integration tests
+        run: >-
+          pnpm exec vitest run
+          --exclude 'src/auth/token.service.integration.spec.ts'
+          --exclude 'src/task-reminders/task-reminder.integration.spec.ts'
+        working-directory: backend
 
-      - name: Build application
+      - name: Type-check and build backend
         run: pnpm build
+        working-directory: backend
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
+
+      - name: Run frontend lint
+        run: pnpm lint
+        working-directory: frontend
+
+      - name: Type-check frontend
+        run: pnpm exec tsc -b --pretty false
+        working-directory: frontend
+
+      - name: Run frontend tests
+        run: pnpm test
+        working-directory: frontend
+
+      - name: Build frontend
+        run: pnpm build
+        working-directory: frontend
+
+  backend-integration:
+    name: Backend integration (PostgreSQL and Redis)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: taskforge_auth_test
+          POSTGRES_USER: taskforge_ci
+          POSTGRES_PASSWORD: taskforge_ci
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U taskforge_ci -d taskforge_auth_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6381:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://taskforge_ci:taskforge_ci@localhost:5433/taskforge_auth_test?schema=public
+      DATABASE_URL_UNPOOLED: postgresql://taskforge_ci:taskforge_ci@localhost:5433/taskforge_auth_test?schema=public
+      TEST_REDIS_HOST: 127.0.0.1
+      TEST_REDIS_PORT: 6381
+      RUN_AUTH_DB_INTEGRATION: 1
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: backend/pnpm-lock.yaml
+
+      - name: Install backend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: backend
+
+      - name: Generate Prisma Client
+        run: pnpm exec prisma generate
+        working-directory: backend
+
+      - name: Verify pnpm Prisma Client resolution
+        run: >-
+          node -e 'const fs=require("node:fs");const path=require("node:path");
+          const dir=path.dirname(require.resolve("@prisma/client"));
+          fs.cpSync(path.join(dir,".prisma/client"),path.resolve(dir,"../../.prisma/client"),{recursive:true,force:true});
+          const {PrismaClient}=require("@prisma/client");const client=new PrismaClient();
+          if(!client.taskDependency||!client.taskChecklistItem||!client.taskActivity)throw new Error("Generated Prisma Client is stale")'
+        working-directory: backend
+
+      - name: Apply migrations to isolated CI database
+        run: pnpm exec prisma migrate deploy
+        working-directory: backend
+
+      - name: Run database and queue integration tests
+        run: >-
+          pnpm exec vitest run
+          --no-file-parallelism
+          src/auth/token.service.integration.spec.ts
+          src/task-reminders/task-reminder.integration.spec.ts
+        working-directory: backend

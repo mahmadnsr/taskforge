@@ -4,6 +4,7 @@ import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { AuthService } from './auth.service.js';
 import { RegisterInput } from './dto/register.input.js';
+import { RegisterWithInvitationInput } from './dto/register-with-invitation.input.js';
 import { LoginInput } from './dto/login.input.js';
 import { RefreshTokenInput } from './dto/refresh-token.input.js';
 import { User } from '../users/entities/user.entity.js';
@@ -24,6 +25,14 @@ export class AuthResolver {
   }
 
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Mutation(() => User)
+  registerWithInvitation(
+    @Args('input') input: RegisterWithInvitationInput,
+  ) {
+    return this.authService.registerWithInvitation(input);
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Mutation(() => AuthPayload)
   login(@Args('input') input: LoginInput) {
     return this.authService.login(input);
@@ -35,6 +44,7 @@ export class AuthResolver {
     return this.authService.refresh(input.refreshToken);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Mutation(() => Boolean)
   logout(@Args('input') input: RefreshTokenInput) {
     return this.authService.logout(input.refreshToken);

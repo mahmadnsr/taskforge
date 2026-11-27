@@ -76,6 +76,9 @@ describe('TaskReminderSchedulerService', () => {
     const firstQuery = prisma.task.findMany.mock.calls[0][0];
     const secondQuery = prisma.task.findMany.mock.calls[1][0];
 
+    expect(firstQuery.where.deletedAt).toBeNull();
+    expect(secondQuery.where.deletedAt).toBeNull();
+
     expect(firstQuery.where.dueDate.gte).toEqual(
       new Date('2026-10-26T11:55:00.000Z'),
     );
