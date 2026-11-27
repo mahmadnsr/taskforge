@@ -7,7 +7,6 @@ import type { PrismaService } from '../prisma/prisma.service.js';
 const ORG = 'org-1';
 const OTHER_ORG = 'org-2';
 const USER = 'user-1';
-const OTHER_USER = 'user-2';
 
 function setup(role: Role | null = Role.ADMIN) {
   const prisma = {
